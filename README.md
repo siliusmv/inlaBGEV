@@ -8,18 +8,14 @@ The goal of inlaBGEV is to ...
 
 ## Installation
 
-You can install the released version of inlaBGEV from [CRAN](https://CRAN.R-project.org) with:
+You can install the released version of inlaBGEV from github
 
 ``` r
-install.packages("inlaBGEV")
+devtools::install_github("siliusmv/inlaBGEV")
 ```
 
-## Example
+## Scripts
 
-This is a basic example which shows you how to solve a common problem:
+### Simulation study
 
-``` r
-library(inlaBGEV)
-## basic example code
-```
-
+The script `exec/simulation-study.R` contains a simulation study.

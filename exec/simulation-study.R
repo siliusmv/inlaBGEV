@@ -1,4 +1,7 @@
 library(INLA)
+library(ggplot2)
+library(dplyr)
+library(inlaBGEV)
 
 n_trials = 20
 n_loc = 250

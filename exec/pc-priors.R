@@ -1,10 +1,12 @@
+library(inlaBGEV)
 library(dplyr)
 library(tidyr)
-library(tidyselect)
 library(ggplot2)
 
 # In this script we compare the different Kullback-Leibler distances that have been discussed.
 # We also use these to compare the PC priors for different extreme value distributions
+
+stop("Consider removing the 'approx' stuff")
 
 # Compute KLD for different distributions
 df = data.frame(ξ = seq(.001, .999, by = .001))
@@ -15,7 +17,7 @@ df$bgev = kld_bgev(df$ξ, approx = FALSE)
 df$bgev_approx = kld_bgev(df$ξ, approx = TRUE)
 
 # Plot KLD
-tidyr::pivot_longer(df, tidyselect::starts_with(c("g", "b"))) %>%
+tidyr::pivot_longer(df, starts_with(c("g", "b"))) %>%
   dplyr::filter(ξ < .4) %>%
   ggplot() +
   geom_line(aes(x = ξ, y = value, col = name, group = name))
@@ -30,7 +32,7 @@ df2$bgev = pc_bgev(df2$ξ, λ = 7, approx = FALSE)
 df2$bgev_approx = pc_bgev(df2$ξ, λ = 7, approx = TRUE)
 
 # Plot the densities
-tidyr::pivot_longer(df2, tidyselect::starts_with(c("g", "b"))) %>%
+tidyr::pivot_longer(df2, starts_with(c("g", "b"))) %>%
   ggplot() +
   geom_line(aes(x = ξ, y = value, col = name, group = name))
 # With λ = 7, all the PC priors are practically identical. However, there are
@@ -39,7 +41,7 @@ tidyr::pivot_longer(df2, tidyselect::starts_with(c("g", "b"))) %>%
 
 plot = df2 %>%
   dplyr::select(-gev_approx, -bgev_approx) %>%
-  pivot_longer(tidyselect::starts_with(c("g", "b"))) %>%
+  pivot_longer(starts_with(c("g", "b"))) %>%
   dplyr::mutate(name = factor(name, levels = c("gev", "bgev", "gp"),
                               labels = c("GEV", "BGEV", "GP"))) %>%
   ggplot() +

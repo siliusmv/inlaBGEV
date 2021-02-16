@@ -71,7 +71,7 @@ inla_stack = function(df, covariate_names, response_name, spde = NULL, tag = "ta
   names(stack_response) = response_name
   df$intercept = 1
   effects_df = df[, c("intercept", unique(unlist(covariate_names)))]
-  if (is(effects_df, c("sf", "sfc"))) effects_df = sf::st_drop_geometry(effects_df)
+  if (is(effects_df, "sf") || is(effects_df, "sfc")) effects_df = sf::st_drop_geometry(effects_df)
   effects = list(as.data.frame(effects_df))
   names(effects[[1]]) = c("intercept", unique(unlist(covariate_names)))
   A = list(1)
@@ -99,8 +99,9 @@ inla_bgev = function(data,
   data[[response_name]] = data[[response_name]] / standardising_const
 
   # Create the design matrix
-  X = dplyr::select(data, tidyselect::all_of(unlist(covariate_names))) %>%
-    as.matrix()
+  X = dplyr::select(data, tidyselect::all_of(unique(unlist(covariate_names))))
+  if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
+  X = as.matrix(X)
 
   # Create data structures used by R-INLA
   stack = inla_stack(data, covariate_names, response_name = response_name, spde = spde)

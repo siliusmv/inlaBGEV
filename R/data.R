@@ -1,4 +1,20 @@
+#' @export
+compute_data_stats = function(pars, q = c(.025, .25, .5, .75, .975)) {
+  varname = as.character(substitute(pars))
+  if (!is.list(pars)) {
+    pars = list(pars)
+    names(pars) = varname
+  }
+  res = list()
+  for (name in names(pars)) {
+    stats = data_stats(pars[[name]], q)
+    stats$par = name
+    res[[name]] = stats
+  }
+  res
+}
 
+#' @export
 data_stats = function(x, q = c(.025, .25, .5, .75, .975)) {
   if (all(is.null(dim(x)))) {
     quantiles = quantile(x, probs = q, na.rm = TRUE)
@@ -16,6 +32,7 @@ data_stats = function(x, q = c(.025, .25, .5, .75, .975)) {
   res
 }
 
+#' @export
 standardise = function(df, stats) {
   for (name in colnames(stats)) {
     df[[name]] = (df[[name]] - stats["mean", name]) / stats["sd", name]
@@ -23,6 +40,7 @@ standardise = function(df, stats) {
   df
 }
 
+#' @export
 un_standardise = function(df, stats) {
   for (name in colnames(stats)) {
     df[[name]] = df[[name]] * stats["sd", name] + stats["mean", name]
@@ -30,6 +48,7 @@ un_standardise = function(df, stats) {
   df
 }
 
+#' @export
 get_stats_for_standardisation = function(df, covariate_names) {
   statistics = matrix(NA, 2, length(covariate_names))
   rownames(statistics) = c("mean", "sd")

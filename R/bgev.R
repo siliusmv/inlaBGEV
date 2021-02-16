@@ -57,9 +57,9 @@ dbgev = function(x, μ, σ, ξ, p_a = .1, p_b = .2, s = 5, log = FALSE) {
 }
 
 #' @export
-wcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
-  if (p < p_b) stop("wcrps_bgev is not implemented for p < p_b")
-  wcrps_gev(y, μ, σ, ξ, p)
+twcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
+  if (p < p_b) stop("twcrps_bgev is not implemented for p < p_b")
+  twcrps_gev(y, μ, σ, ξ, p)
 }
 
 #' @export

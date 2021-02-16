@@ -46,14 +46,14 @@ return_level_gev = function(period, μ, σ, ξ) {
 }
 
 #' @export
-wcrps_gev = function(y, μ, σ, ξ, p) {
+twcrps_gev = function(y, μ, σ, ξ, p) {
   if (p < 0 || p > 1) stop("p must be a probability between 0 and 1")
-  res = mapply(wcrps_gev_one_par, μ = μ, σ = σ, ξ = ξ, MoreArgs = list(y = y, p = p))
+  res = mapply(twcrps_gev_one_par, μ = μ, σ = σ, ξ = ξ, MoreArgs = list(y = y, p = p))
   if (!is.null(dim(res)) && ncol(res) == 1) res = as.numeric(res)
   res
 }
 
-wcrps_gev_one_par = function(y, μ, σ, ξ, p) {
+twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
   Fy = pgev(y, μ, σ, ξ)
   Ei = function(x) {
     res = rep(0, length(x))

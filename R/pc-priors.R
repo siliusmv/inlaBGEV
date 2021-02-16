@@ -142,10 +142,13 @@ kld_gev_derivative = function(ξ, approx = TRUE, ...) {
     a = -.0870732
     b = .2553301
     c = -.4088320
-    polynomial = 3 * a * ξ^2 + 2 * b * ξ + c
-    res = digamma(1) - gamma(1 - ξ) * digamma(1 - ξ) / ξ - (gamma(1 - ξ) - 1) / ξ^2 + polynomial
+    int_derivative = 3 * a * ξ^2 + 2 * b * ξ + c
   } else {
-    res = numDeriv::grad(kld_gev, ξ, approx = approx, ...)
+    f = function(u, ξ) {
+      exp((1 - (-log(u))^-ξ) / ξ) *
+        (ξ^-2 * (-1 + (-log(u))^-ξ) + ξ^-1 * (-log(u))^-ξ * log(-log(u)))
+    }
+    int_derivative = sapply(ξ, function(ξ) integrate(f, lower = 0, upper = 1, ξ = ξ)$value)
   }
-  res
+  digamma(1) - gamma(1 - ξ) * digamma(1 - ξ) / ξ - (gamma(1 - ξ) - 1) / ξ^2 + int_derivative
 }

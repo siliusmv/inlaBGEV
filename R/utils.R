@@ -13,9 +13,6 @@ fix_lengths = function(...) {
   call = match.call()
   varnames = sapply(call[-1], as.character)
   e = parent.frame()
-  if (identical(e, globalenv())) {
-    stop("This function should not be called directly from the global environment")
-  }
   vars = lapply(varnames, get, envir = e)
   lengths = sapply(vars, length)
   max_length = max(lengths)
@@ -34,19 +31,6 @@ get_progress_bar = function(n) {
     total = n + 1, width = 70, clear = FALSE)
   pb$tick()
   pb
-}
-
-tikz_plot = function(file, expression, view = FALSE, ...) {
-  tmp = tempfile(tmpdir = getwd())
-  tikzDevice::tikz(tmp, standAlone = TRUE, ...)
-  eval(substitute(expression), envir = parent.frame())
-  dev.off()
-  system2("pdflatex", tmp)
-  file.copy(paste0(tmp, ".pdf"), file, overwrite = TRUE)
-  tmp_filename = tail(strsplit(tmp, "/")[[1]], 1)
-  files_to_clean = grep(tmp_filename, list.files(full.names = TRUE), value = TRUE)
-  file.remove(files_to_clean)
-  if (view) system2("open", file)
 }
 
 get_proj_xy = function() {
@@ -82,4 +66,3 @@ tikz_plot = function(file, expression, view = FALSE, ...) {
     }
   }
 }
-
