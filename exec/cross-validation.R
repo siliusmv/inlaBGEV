@@ -19,7 +19,11 @@ covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea", "wetda
 
 stats = list()
 for (i in seq_along(hour_vec)) {
-  stats[[i]] = list(in_sample = list(), out_of_sample = list())
+  stats[[i]] = list(
+    in_sample_twostep = list(),
+    out_of_sample_twostep = list(),
+    in_sample_direct = list(),
+    out_of_sample_direct = list())
   n_hours = hour_vec[i]
 
   # Filter out the data of interest and standardise the covariates in the observations data
@@ -118,7 +122,7 @@ for (i in seq_along(hour_vec)) {
     bad_samples = which(sapply(samples, is.null))
     if (any(bad_samples)) {
       samples = samples[-bad_samples]
-      good_sd_samples = sd_samples[-bad_samples]
+      good_sd_samples = sd_samples[, -bad_samples]
     } else {
       good_sd_samples = sd_samples
     }
@@ -151,6 +155,7 @@ for (i in seq_along(hour_vec)) {
       }
     }
 
+    # Compute twCRPS
     twcrps = list()
     for (k in seq_along(unique(leave_out_data$id))) {
       id = unique(leave_out_data$id)[k]
@@ -159,8 +164,38 @@ for (i in seq_along(hour_vec)) {
                                             est_pars$ξ[k, ], α, β)
       twcrps[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
-    stats[[i]]$out_of_sample[[j]] = unlist(twcrps)
+    stats[[i]]$out_of_sample_twostep[[j]] = unlist(twcrps)
 
+    # Use direct modelling, out of sample
+    res2 = tryCatch(inla_bgev(
+      data = in_sample_data,
+      covariate_names = covariate_names,
+      response_name = "value",
+      spde = spde,
+      α = α,
+      β = β), error = function(e) NULL)
+
+    if (!is.null(res2)) {
+      samples2 = inla.posterior.sample(100 * length(samples), res2)
+
+      est_pars2 = inla_bgev_pars(
+        samples = samples2,
+        data = leave_out_data,
+        covariate_names = covariate_names,
+        s_est = rep(res2$standardising_const, nrow(leave_out_data)),
+        mesh = mesh,
+        coords = st_geometry(leave_out_data))
+
+      twcrps2 = list()
+      for (k in seq_along(unique(leave_out_data$id))) {
+        id = unique(data$id)[k]
+        obs = dplyr::filter(data, id == !!id)$value
+        locscale_pars = locspread_to_locscale(est_pars2$q[k, ], est_pars2$s[k, ],
+                                              est_pars2$ξ[k, ], α, β)
+        twcrps2[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
+      }
+      stats[[i]]$out_of_sample_direct[[j]] = unlist(twcrps2)
+    }
 
     # Do the same stuff, but in-sample
     samples = parallel::mclapply(
@@ -188,7 +223,7 @@ for (i in seq_along(hour_vec)) {
     bad_samples = which(sapply(samples, is.null))
     if (any(bad_samples)) {
       samples = samples[-bad_samples]
-      good_sd_samples = sd_samples[-bad_samples]
+      good_sd_samples = sd_samples[, -bad_samples]
     } else {
       good_sd_samples = sd_samples
     }
@@ -224,26 +259,64 @@ for (i in seq_along(hour_vec)) {
                                             est_pars$ξ[k, ], α, β)
       twcrps[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
-    stats[[i]]$in_sample[[j]] = unlist(twcrps)
+    stats[[i]]$in_sample_twostep[[j]] = unlist(twcrps)
+
+    res2 = tryCatch(inla_bgev(
+      data = data,
+      covariate_names = covariate_names,
+      response_name = "value",
+      spde = spde,
+      α = α,
+      β = β), error = function(e) NULL)
+
+    if (!is.null(res2)) {
+      samples2 = inla.posterior.sample(100 * length(samples), res2)
+
+      est_pars2 = inla_bgev_pars(
+        samples = samples2,
+        data = leave_out_data,
+        covariate_names = covariate_names,
+        s_est = rep(res2$standardising_const, nrow(leave_out_data)),
+        mesh = mesh,
+        coords = st_geometry(leave_out_data))
+
+      twcrps2 = list()
+      for (k in seq_along(unique(leave_out_data$id))) {
+        id = unique(data$id)[k]
+        obs = dplyr::filter(data, id == !!id)$value
+        locscale_pars = locspread_to_locscale(est_pars2$q[k, ], est_pars2$s[k, ],
+                                              est_pars2$ξ[k, ], α, β)
+        twcrps2[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
+      }
+      stats[[i]]$in_sample_direct[[j]] = unlist(twcrps2)
+    }
 
     message("Done with fold nr. ", j)
   }
-  stats[[i]]$in_sample = data_stats(unlist(stats[[i]]$in_sample))
-  stats[[i]]$out_of_sample = data_stats(unlist(stats[[i]]$out_of_sample))
 
   message("Done with ", n_hours, " hours")
-  message("Number of succesful runs: ", length(samples) / 100, " of ", n_sd_samples)
+  message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
 
 #saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"))
+
+for (i in seq_along(stats)) {
+  for (j in seq_along(stats[[i]])) {
+    stats[[i]][[j]] = data_stats(unlist(stats[[i]][[j]]))
+  }
+}
 
 # CRPS
 for (i in seq_along(stats)) {
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
           "=========================================")
-  message("With standardisation:")
-  print(stats[[i]]$in_sample)
-  message("With direct modelling:")
-  print(stats[[i]]$out_of_sample)
+  message("In sample, twostep:")
+  print(stats[[i]]$in_sample_twostep)
+  message("In sample, direct:")
+  print(stats[[i]]$in_sample_direct)
+  message("Out of sample, twostep:")
+  print(stats[[i]]$out_of_sample_twostep)
+  message("Out of sample, direct:")
+  print(stats[[i]]$out_of_sample_direct)
 }
