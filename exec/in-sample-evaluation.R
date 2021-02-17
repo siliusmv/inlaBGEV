@@ -14,7 +14,7 @@ p0 = .9
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea", "wetdays"),
-                       c("x", "y", "height", "precipitation"), NULL)
+                       c("x", "y", "height", "dist_sea"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
@@ -103,7 +103,7 @@ for (i in seq_along(hour_vec)) {
   bad_samples = which(sapply(samples, is.null))
   if (any(bad_samples)) {
     samples = samples[-bad_samples]
-    s_samples = s_samples[-bad_samples]
+    sd_samples = sd_samples[-bad_samples]
   }
 
   # Compute the SD multiplied with the standardising const at all observation locations
@@ -186,16 +186,3 @@ for (i in seq_along(stats)) {
   message("With direct modelling:")
   print(stats[[i]]$joint_modelling)
 }
-# This is great. The standardisation approach is better above the 90% quantile!
-
-# Tail parameter estimation
-for (i in seq_along(all_stats)) {
-  message("=========================================\n",
-          hour_vec[i], " hour(s)\n",
-          "=========================================")
-  message("With standardisation:")
-  print(summary(all_stats[[i]]$standardised_tail))
-  message("With direct modelling:")
-  print(summary(all_stats[[i]]$direct_tail))
-}
-# The directly estimated ξ seems to be too small

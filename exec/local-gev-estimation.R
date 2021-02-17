@@ -99,7 +99,7 @@ plot
 #           width = 10, height = 7, view = TRUE)
 
 # Plot parameter estimates with covariates ==============================
-q_plot = params %>%
+q_plot1 = params %>%
   dplyr::filter(par %in% c("q"), !is.na(mean)) %>%
   dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
                                  labels = paste(hour_vec, "hours"))) %>%
@@ -118,9 +118,9 @@ q_plot = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-q_plot
+q_plot1
 
-s_plot = params %>%
+s_plot1 = params %>%
   dplyr::filter(par %in% c("s"), !is.na(mean)) %>%
   dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
                                  labels = paste(hour_vec, "hours"))) %>%
@@ -139,10 +139,10 @@ s_plot = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-s_plot
+s_plot1
 
 # tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_with_covariates.pdf"),
-#           expression = {print(q_plot); print(s_plot)},
+#           expression = {print(q_plot1); print(s_plot1)},
 #           width = 10, height = 7, view = TRUE)
 
 
@@ -156,7 +156,7 @@ min_years = 6
 hour_vec = c(1, 3, 6)
 covariate_names = c("x", "y", "height", "dist_sea", "precipitation", "wetdays")
 
-params = list()
+params2 = list()
 for (i in seq_along(hour_vec)) {
   # Prepare the data
   data = dplyr::filter(observations, n_hours == hour_vec[i], n_years >= min_years)
@@ -191,14 +191,14 @@ for (i in seq_along(hour_vec)) {
     dplyr::distinct(id, .keep_all = TRUE)
   bootstraps = dplyr::left_join(bootstraps, explanatory_variables, by = "id")
 
-  params[[i]] = bootstraps
+  params2[[i]] = bootstraps
   message("Done with ", hour_vec[i], " hours")
 }
-params = do.call(rbind, params)
+params2 = do.call(rbind, params2)
 
 # Plot parameter estimates for all stations ====================
 
-plot = params %>%
+plot2 = params2 %>%
   dplyr::filter(!is.na(mean)) %>%
   # Remove one stations for purely aesthetic reasons. The station with id SN49085
   # has four observations, and for n_hours = 6, one of them is really large.
@@ -220,14 +220,14 @@ plot = params %>%
   theme_bw() +
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0))
-plot
+plot2
 
 #tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_twostep.pdf"),
-#          print(plot),
+#          print(plot2),
 #          width = 10, height = 7, view = TRUE)
 
 # Plot parameter estimates with covariates ==============================
-q_plot = params %>%
+q_plot2 = params %>%
   dplyr::filter(par %in% c("q"), !is.na(mean)) %>%
   dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
                                  labels = paste(hour_vec, "hours"))) %>%
@@ -246,9 +246,9 @@ q_plot = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-q_plot
+q_plot2
 
-s_plot = params %>%
+s_plot2 = params %>%
   dplyr::filter(par %in% c("s"), !is.na(mean)) %>%
   dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
                                  labels = paste(hour_vec, "hours"))) %>%
@@ -267,7 +267,7 @@ s_plot = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-s_plot
+s_plot2
 
 sd_plot = params %>%
   dplyr::filter(!is.na(mean)) %>%
@@ -296,5 +296,5 @@ sd_plot
 
 #tikz_plot(file.path(here::here(), "inst", "extdata",
 #                    "pwm_gev_parameters_twostep_with_covariates.pdf"),
-#          expression = {print(q_plot); print(s_plot)},
+#          expression = {print(q_plot2); print(s_plot2)},
 #          width = 10, height = 7, view = TRUE)

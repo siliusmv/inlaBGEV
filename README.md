@@ -1,9 +1,6 @@
 
 # inlaBGEV
 
-<!-- badges: start -->
-<!-- badges: end -->
-
 The goal of inlaBGEV is to ...
 
 ## Installation
@@ -19,3 +16,15 @@ devtools::install_github("siliusmv/inlaBGEV")
 ### Simulation study
 
 The script `exec/simulation-study.R` contains a simulation study.
+
+### Return level maps
+
+### PC priors
+
+
+## Numerical dificulties
+
+If you are experiencing numerical difficulties, you might have to stop using inla.pardiso. The inla.pardiso library speeds up computations, but it is also more numerically unstable.
+``` r
+INLA::inla.setOption(pardiso.license = NULL)
+```
