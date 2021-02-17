@@ -1,7 +1,14 @@
-library(sf)
 library(dplyr)
-library(inlaBGEV)
 library(INLA)
+library(parallel)
+library(sf)
+library(inlaBGEV)
+library(ggplot2)
+library(patchwork)
+
+# In this script we estimate return level maps for 1, 3, and 6 hour precipitation,
+# using the two-step procedure of sparately modelling the spread in space
+
 
 hour_vec = c(1, 3, 6)
 α = .5
@@ -10,21 +17,22 @@ min_sd_years = 6L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
 num_cores = 6 # Number of cores used for parallel computations
-p0 = .9
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea", "wetdays"),
-                       c("x", "y", "height", "precipitation"), NULL)
+                       c("x", "y", "height", "dist_sea"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
   n_hours = hour_vec[i]
 
   # Filter out the data of interest and standardise the covariates in the observations data
+  # and in the prediction data
   data = dplyr::left_join(observations, estimated_sd, by = c("id", "n_hours", "n_years")) %>%
     dplyr::filter(n_hours == !!n_hours)
   standardisation_stats = get_stats_for_standardisation(data, covariate_names[[1]])
   data = standardise(data, standardisation_stats)
+  prediction_data = standardise(prediction_grid, standardisation_stats)
 
   # Create the mesh used for modelling, and define the prior for the
   # spatial Gaussian field
@@ -62,15 +70,19 @@ for (i in seq_along(hour_vec)) {
   # Run R-INLA
   s_res = do.call(inla, sd_inla_args)
 
-  # Sample from the distribution of the SD at all observation locations
+  # Sample from the distribution of the SD at all observation locations and prediction locations
+  sd_prediction_data = sd_df %>%
+    st_transform(st_crs(prediction_data)) %>%
+    dplyr::select(all_of(names(prediction_data))) %>%
+    rbind(prediction_data)
   set.seed(1)
   log_sd_samples = inla.posterior.sample(s_res, n = n_sd_samples, seed = 1)
   log_sd_pars = inla_gaussian_pars(
     samples = log_sd_samples,
-    data = dplyr::distinct(data, id, .keep_all = TRUE),
+    data = sd_prediction_data,
     covariate_names = covariate_names[[2]],
     mesh = mesh,
-    coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
+    coords = st_geometry(sd_prediction_data))
   sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
@@ -84,7 +96,7 @@ for (i in seq_along(hour_vec)) {
       res = tryCatch({
         inla_bgev(
           data = data,
-          s_est = sd_samples[, i],
+          s_est = sd_samples[, i][1:nrow(sd_df)],
           covariate_names = list(covariate_names[[1]], NULL, NULL),
           response_name = "value",
           spde = spde,
@@ -103,99 +115,59 @@ for (i in seq_along(hour_vec)) {
   bad_samples = which(sapply(samples, is.null))
   if (any(bad_samples)) {
     samples = samples[-bad_samples]
-    s_samples = s_samples[-bad_samples]
+    sd_samples = sd_samples[, -bad_samples]
   }
 
-  # Compute the SD multiplied with the standardising const at all observation locations
+  # Compute the SD multiplied with the standardising const at all prediction locations
   s_est = lapply(
     seq_along(samples),
-    function(i) samples[[i]]$const * sd_samples[, i])
+    function(i) samples[[i]]$const * sd_samples[-(1:nrow(sd_df)), i])
 
-  # Compute sampled parameters at all observation locations
-  est_pars = list()
-  for (j in seq_along(samples)) {
-    est_pars[[j]] = inla_bgev_pars(
-      samples = samples[[j]]$samples,
-      data = dplyr::distinct(data, id, .keep_all = TRUE),
-      covariate_names = list(covariate_names[[1]], NULL, NULL),
-      s_est = s_est[[j]],
-      mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-  }
-  est_pars = purrr::transpose(est_pars)
-  for (j in seq_along(est_pars)) {
-    if (is.null(dim(est_pars[[j]][[1]]))) {
-      est_pars[[j]] = do.call(c, est_pars[[j]])
-    } else {
-      est_pars[[j]] = do.call(cbind, est_pars[[j]])
-    }
-  }
-
-  stats[[i]] = list()
-
-  twcrps = list()
-  for (j in seq_along(unique(data$id))) {
-    id = unique(data$id)[j]
-    obs = dplyr::filter(data, id == !!id)$value
-    locscale_pars = locspread_to_locscale(est_pars$q[j, ], est_pars$s[j, ], est_pars$ξ[j, ], α, β)
-    twcrps[[j]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
-  }
-  stats[[i]]$two_step = data_stats(as.numeric(unlist(twcrps)))
-
-  res2 = inla_bgev(
-    data = data,
-    covariate_names = covariate_names,
-    response_name = "value",
-    spde = spde,
-    α = α,
-    β = β)
-
-  samples2 = inla.posterior.sample(100 * length(samples), res2)
-
-  est_pars2 = inla_bgev_pars(
-    samples = samples2,
-    data = dplyr::distinct(data, id, .keep_all = TRUE),
-    covariate_names = covariate_names,
-    s_est = rep(res2$standardising_const, length(unique(data$id))),
+  # Compute parameter stats and return level stats at all locations
+  stats[[i]] = inla_bgev_stats(
+    sample_list = lapply(samples, `[[`, "samples"),
+    data = prediction_data,
+    covariate_names = list(covariate_names[[1]], NULL, NULL),
+    s_list = s_est,
     mesh = mesh,
-    coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-
-  twcrps2 = list()
-  for (j in seq_along(unique(data$id))) {
-    id = unique(data$id)[j]
-    obs = dplyr::filter(data, id == !!id)$value
-    locscale_pars = locspread_to_locscale(est_pars2$q[j, ], est_pars2$s[j, ],
-                                          est_pars2$ξ[j, ], α, β)
-    twcrps2[[j]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
-  }
-  stats[[i]]$joint_modelling = data_stats(as.numeric(unlist(twcrps2)))
+    n_batches = 50,
+    fun = function(pars) {
+      locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
+      return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
+    })
 
   message("Done with ", n_hours, " hours")
-  message("Number of succesful runs: ", length(samples) / 100, " of ", n_sd_samples)
+  message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
 
-#saveRDS(stats, file.path(here::here(), "inst", "extdata", "twcrps-comparison.rds"))
+#saveRDS(stats, file.path(here::here(), "inst", "extdata", "return-level-stats.rds"))
 
-# CRPS
-for (i in seq_along(stats)) {
-  message("=========================================\n",
-          hour_vec[i], " hour(s)\n",
-          "=========================================")
-  message("With standardisation:")
-  print(stats[[i]]$two_step)
-  message("With direct modelling:")
-  print(stats[[i]]$joint_modelling)
-}
-# This is great. The standardisation approach is better above the 90% quantile!
+# Plot the results ===================================================
 
-# Tail parameter estimation
-for (i in seq_along(all_stats)) {
-  message("=========================================\n",
-          hour_vec[i], " hour(s)\n",
-          "=========================================")
-  message("With standardisation:")
-  print(summary(all_stats[[i]]$standardised_tail))
-  message("With direct modelling:")
-  print(summary(all_stats[[i]]$direct_tail))
-}
-# The directly estimated ξ seems to be too small
+my_breaks = c(8, 12, 16, 20, 24, 28)
+p1 = stats[[1]]$fun %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation\n20 year return level")
+
+my_breaks = c(18, 24, 30, 36, 42, 48)
+p2 = stats[[2]]$f %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation\n20 year return level")
+
+my_breaks = c(20, 30, 40, 50, 60, 70)
+p3 = stats[[3]]$f %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation\n20 year return level")
+
+text_size = 8
+myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
+  theme(text = element_text(size = text_size))
+
+#tikz_plot(file.path(here::here(), "inst", "extdata", "1-3-6-hour-return-level-maps.pdf"),
+#          print(myplot), width = 7, height = 10)

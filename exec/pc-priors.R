@@ -6,8 +6,6 @@ library(ggplot2)
 # In this script we compare the different Kullback-Leibler distances that have been discussed.
 # We also use these to compare the PC priors for different extreme value distributions
 
-stop("Consider removing the 'approx' stuff")
-
 # Compute KLD for different distributions
 df = data.frame(ξ = seq(.001, .999, by = .001))
 df$gp = kld_gp(df$ξ)

@@ -37,6 +37,7 @@ get_proj_xy = function() {
   sf::st_crs("+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")
 }
 
+#' @export
 tikz_plot = function(file, expression, view = FALSE, ...) {
   operating_system = Sys.info()[["sysname"]]
   if (operating_system == "Windows") {

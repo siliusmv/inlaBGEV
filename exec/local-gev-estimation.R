@@ -150,7 +150,7 @@ s_plot
 
 
 # Standardise the response using the standard deviation of heavy precipitation =========
-min_years = 4
+min_years = 6
 α = .5
 β = .8
 hour_vec = c(1, 3, 6)
@@ -187,7 +187,7 @@ for (i in seq_along(hour_vec)) {
 
   # Add explanatory variables to the estimated variables
   explanatory_variables = data %>%
-    dplyr::select(-value, -year) %>%
+    dplyr::select(-value, -year, -sd) %>%
     dplyr::distinct(id, .keep_all = TRUE)
   bootstraps = dplyr::left_join(bootstraps, explanatory_variables, by = "id")
 
@@ -268,6 +268,31 @@ s_plot = params %>%
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
 s_plot
+
+sd_plot = params %>%
+  dplyr::filter(!is.na(mean)) %>%
+  dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
+                                 labels = paste(hour_vec, "hours"))) %>%
+  tidyr::pivot_longer(all_of(covariate_names)) %>%
+  dplyr::mutate(name = factor(
+    name, levels = covariate_names,
+    labels = c("Mean daily\nprecipitation", "Mean yearly\nwetdays", "Distance\nfrom sea",
+               "Altitude", "Easting", "Norting"))) %>%
+  ggplot() +
+  geom_point(aes(y = sd, x = value), size = .2) +
+  geom_smooth(aes(y = sd, x = value), formula = y ~ x, method = "lm",
+              col = "black", size = .5) +
+  labs(y = "$\\hat{\\text{SD}}_\\beta$", x = "Standardised value") +
+  facet_grid(n_hours ~ name, scales = "free_y") +
+  theme_bw() +
+  theme(text = element_text(size = 20),
+        strip.text.y = element_text(angle = 0),
+        axis.title.y = element_text(angle = 0, vjust = .5))
+sd_plot
+
+
+
+
 
 #tikz_plot(file.path(here::here(), "inst", "extdata",
 #                    "pwm_gev_parameters_twostep_with_covariates.pdf"),

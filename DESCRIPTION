@@ -28,6 +28,8 @@ Imports:
     numDeriv,
     sp,
     quantreg,
-    purrr
+    purrr,
+    patchwork,
+    scico
 Depends: 
     R (>= 2.10)
