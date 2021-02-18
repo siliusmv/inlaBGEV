@@ -122,15 +122,13 @@ for (i in seq_along(hour_vec)) {
     bad_samples = which(sapply(samples, is.null))
     if (any(bad_samples)) {
       samples = samples[-bad_samples]
-      good_sd_samples = sd_samples[, -bad_samples]
-    } else {
-      good_sd_samples = sd_samples
+      sd_samples = sd_samples[, -bad_samples]
     }
 
     # Compute the SD multiplied with the standardising const at all leave_out observation locations
     s_est = lapply(
       seq_along(samples),
-      function(i) samples[[i]]$const * good_sd_samples[, i][folds == j])
+      function(i) samples[[i]]$const * sd_samples[, i][folds == j])
 
     leave_out_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
       dplyr::filter(id %in% ids[folds == j])
@@ -164,7 +162,7 @@ for (i in seq_along(hour_vec)) {
                                             est_pars$ξ[k, ], α, β)
       twcrps[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
-    stats[[i]]$out_of_sample_twostep[[j]] = unlist(twcrps)
+    stats[[i]]$out_of_sample_twostep[[j]] = twcrps
 
     # Use direct modelling, out of sample
     res2 = tryCatch(inla_bgev(
@@ -194,10 +192,28 @@ for (i in seq_along(hour_vec)) {
                                               est_pars2$ξ[k, ], α, β)
         twcrps2[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
       }
-      stats[[i]]$out_of_sample_direct[[j]] = unlist(twcrps2)
+      stats[[i]]$out_of_sample_direct[[j]] = twcrps2
     }
 
     # Do the same stuff, but in-sample
+    sd_stack = inla_stack(sd_df, covariate_names[[2]],
+                          response_name = "log_sd", spde = sd_spde)
+    sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
+    sd_inla_args$data = INLA::inla.stack.data(sd_stack)
+    sd_inla_args$data$sd_spde = sd_spde
+    s_res = do.call(inla, sd_inla_args)
+    set.seed(1)
+    log_sd_samples = inla.posterior.sample(s_res, n = n_sd_samples, seed = 1)
+    log_sd_pars = inla_gaussian_pars(
+      samples = log_sd_samples,
+      data = dplyr::distinct(data, id, .keep_all = TRUE),
+      covariate_names = covariate_names[[2]],
+      mesh = mesh,
+      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
+    sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
+      matrix(nrow = nrow(log_sd_pars$μ)) %>%
+      exp()
+
     samples = parallel::mclapply(
       X = seq_len(n_sd_samples),
       mc.cores = num_cores,
@@ -223,14 +239,12 @@ for (i in seq_along(hour_vec)) {
     bad_samples = which(sapply(samples, is.null))
     if (any(bad_samples)) {
       samples = samples[-bad_samples]
-      good_sd_samples = sd_samples[, -bad_samples]
-    } else {
-      good_sd_samples = sd_samples
+      sd_samples = sd_samples[, -bad_samples]
     }
 
     s_est = lapply(
       seq_along(samples),
-      function(i) samples[[i]]$const * good_sd_samples[, i][folds == j])
+      function(i) samples[[i]]$const * sd_samples[, i][folds == j])
 
     est_pars = list()
     for (k in seq_along(samples)) {
@@ -259,7 +273,7 @@ for (i in seq_along(hour_vec)) {
                                             est_pars$ξ[k, ], α, β)
       twcrps[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
-    stats[[i]]$in_sample_twostep[[j]] = unlist(twcrps)
+    stats[[i]]$in_sample_twostep[[j]] = twcrps
 
     res2 = tryCatch(inla_bgev(
       data = data,
@@ -288,7 +302,7 @@ for (i in seq_along(hour_vec)) {
                                               est_pars2$ξ[k, ], α, β)
         twcrps2[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
       }
-      stats[[i]]$in_sample_direct[[j]] = unlist(twcrps2)
+      stats[[i]]$in_sample_direct[[j]] = twcrps2
     }
 
     message("Done with fold nr. ", j)
