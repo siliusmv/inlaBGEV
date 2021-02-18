@@ -32,8 +32,7 @@ for (i in seq_along(hour_vec)) {
   spde = inla.spde2.pcmatern(
     mesh = mesh,
     prior.range = c(75, .05),
-    prior.sigma = c(.5, .05),
-    constr = TRUE)
+    prior.sigma = c(.5, .05))
 
   # Data used for modelling the SD at all observation locations
   sd_df = data %>%
@@ -45,8 +44,7 @@ for (i in seq_along(hour_vec)) {
   sd_spde = inla.spde2.pcmatern(
     mesh = mesh,
     prior.sigma = c(1, .05),
-    prior.range = c(75, .05),
-    constr = TRUE)
+    prior.range = c(75, .05))
 
   # Prepare to use R-INLA for modelling the SD
   sd_stack = inla_stack(sd_df, covariate_names[[2]], response_name = "log_sd", spde = sd_spde)

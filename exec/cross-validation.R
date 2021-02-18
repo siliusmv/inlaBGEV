@@ -7,7 +7,6 @@ hour_vec = c(1, 3, 6)
 α = .5
 β = .8
 min_sd_years = 6L # Minimum number of years before we use the computed SD values
-return_level_period = 20 # Period we are computing return levels for
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
 num_cores = 6 # Number of cores used for parallel computations
 n_folds = 5
@@ -45,8 +44,7 @@ for (i in seq_along(hour_vec)) {
   spde = inla.spde2.pcmatern(
     mesh = mesh,
     prior.range = c(75, .05),
-    prior.sigma = c(.5, .05),
-    constr = TRUE)
+    prior.sigma = c(.5, .05))
 
   # Data used for modelling the SD at all observation locations
   sd_df = data %>%
@@ -58,8 +56,7 @@ for (i in seq_along(hour_vec)) {
   sd_spde = inla.spde2.pcmatern(
     mesh = mesh,
     prior.sigma = c(1, .05),
-    prior.range = c(75, .05),
-    constr = TRUE)
+    prior.range = c(75, .05))
 
   for (j in seq_len(n_folds)) {
 

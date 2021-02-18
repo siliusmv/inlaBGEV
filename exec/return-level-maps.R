@@ -40,8 +40,7 @@ for (i in seq_along(hour_vec)) {
   spde = inla.spde2.pcmatern(
     mesh = mesh,
     prior.range = c(75, .05),
-    prior.sigma = c(.5, .05),
-    constr = TRUE)
+    prior.sigma = c(.5, .05))
 
   # Data used for modelling the SD at all observation locations
   sd_df = data %>%
@@ -53,8 +52,7 @@ for (i in seq_along(hour_vec)) {
   sd_spde = inla.spde2.pcmatern(
     mesh = mesh,
     prior.sigma = c(1, .05),
-    prior.range = c(75, .05),
-    constr = TRUE)
+    prior.range = c(75, .05))
 
   # Prepare to use R-INLA for modelling the SD
   sd_stack = inla_stack(sd_df, covariate_names[[2]], response_name = "log_sd", spde = sd_spde)
@@ -107,11 +105,20 @@ for (i in seq_along(hour_vec)) {
       if (is.null(res)) return(NULL)
       set.seed(1)
       samples = inla.posterior.sample(100, res, seed = 1)
+
+      est_pars = inla_bgev_pars(
+        samples = samples,
+        data = prediction_data,
+        covariate_names = list(covariate_names[[1]], NULL, NULL),
+        s_est = res$standardising_const * sd_samples[, i][-(1:nrow(sd_df))],
+        mesh = mesh,
+        coords = st_geometry(prediction_data))
+      message("iter nr. ", i, " mean: ", mean(as.numeric(est_pars$q)))
+      message("iter nr. ", i, " sd: ", sd(as.numeric(est_pars$q)))
       list(const = res$standardising_const, samples = samples)
     })
 
-  # Sometimes, INLA might have some numerical problems. Remove the bad
-  # models
+  # Sometimes, INLA might have some numerical problems. Remove the bad models
   bad_samples = which(sapply(samples, is.null))
   if (any(bad_samples)) {
     samples = samples[-bad_samples]
