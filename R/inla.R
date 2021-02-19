@@ -124,7 +124,7 @@ inla_bgev = function(data,
   spread_precision = 10
   if (n_s > 0) {
     spread_par = c(spread_par, rep(0, n_s))
-    spread_precision = c(spread_precision, rep(1, n_s))
+    spread_precision = c(spread_precision, rep(1e-3, n_s))
   }
   hyper = inla_spread_prior(spread_par, spread_precision)
 
