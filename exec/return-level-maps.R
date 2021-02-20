@@ -13,7 +13,7 @@ library(patchwork)
 hour_vec = c(1, 3, 6)
 α = .5
 β = .8
-min_sd_years = 6L # Minimum number of years before we use the computed SD values
+min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
 num_cores = 6 # Number of cores used for parallel computations
@@ -85,6 +85,15 @@ for (i in seq_along(hour_vec)) {
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
 
+  for (j in 1:ncol(sd_samples)) {
+  sd_samples[-(1:nrow(sd_df)), j] %>%
+    as.data.frame() %>%
+    cbind(st_geometry(prediction_data)) %>%
+    st_as_sf() %>%
+    plot_grid(response = ".") %>%
+    print()
+  }
+
   # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
   samples = parallel::mclapply(
     X = seq_len(n_sd_samples),
@@ -102,7 +111,7 @@ for (i in seq_along(hour_vec)) {
           β = β)},
         error = function(e) NULL)
       message("Done with iter nr. ", i)
-      if (is.null(res)) return(NULL)
+      if (is.null(res) || !res$convergence) return(NULL)
       set.seed(1)
       samples = inla.posterior.sample(100, res, seed = 1)
       list(const = res$standardising_const, samples = samples)
@@ -119,6 +128,21 @@ for (i in seq_along(hour_vec)) {
   s_est = lapply(
     seq_along(samples),
     function(i) samples[[i]]$const * sd_samples[-(1:nrow(sd_df)), i])
+
+  mystats = list()
+  for (j in seq_along(samples)) {
+    mystats[[j]] = inla_bgev_stats(
+      sample_list = list(samples[[j]]$samples),
+      data = prediction_data,
+      covariate_names = list(covariate_names[[1]], NULL, NULL),
+      s_list = s_est[j],
+      mesh = mesh,
+      n_batches = 50,
+      fun = function(pars) {
+        locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
+        return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
+      })
+  }
 
   # Compute parameter stats and return level stats at all locations
   stats[[i]] = inla_bgev_stats(

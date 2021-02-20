@@ -158,7 +158,11 @@ inla_bgev = function(data,
   # Run R-INLA
   res = do.call(INLA::inla, inla_args)
 
-  if (any(res$summary.fixed$kld > .1)) stop("KLD is too large")
+  if (any(res$summary.fixed$kld > 1e-3)) {
+    res$convergence = FALSE
+  } else {
+    res$convergence = TRUE
+  }
 
   res$standardising_const = standardising_const
   res

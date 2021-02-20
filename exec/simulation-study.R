@@ -83,7 +83,7 @@ for (i in 1:n_trials) {
   # 'consistent', we have to preserve the random seed here to ensure as much
   # reproducibility as possible
   seed = .Random.seed
-  if (!is.null(res1)) {
+  if (!is.null(res1) && res$convergence) {
     tail_estimates[[i]]$with_spread = summary(res1)$hyper[2, -6]
     if (any(is.na(summary(res1)$hyper[2, ]))) {
       tmp = INLA::inla.posterior.sample(100, res1) %>%
@@ -139,7 +139,6 @@ plot = mydf %>%
   #theme_linedraw() +
   theme(axis.title.y = element_text(angle = 0, vjust = 0.5),
         text = element_text(size = 20))
-plot
 
 #tikz_plot(file.path(here::here(), "inst", "extdata", "two-step-performance.pdf"),
 #          print(plot), width = 10, height = 7, view = TRUE)
