@@ -66,7 +66,7 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$data$sd_spde = sd_spde
 
   # Run R-INLA
-  s_res = do.call(inla, sd_inla_args)
+  sd_res = do.call(inla, sd_inla_args)
 
   # Sample from the distribution of the SD at all observation locations and prediction locations
   sd_prediction_data = sd_df %>%
@@ -74,7 +74,7 @@ for (i in seq_along(hour_vec)) {
     dplyr::select(all_of(names(prediction_data))) %>%
     rbind(prediction_data)
   set.seed(1)
-  log_sd_samples = inla.posterior.sample(s_res, n = n_sd_samples, seed = 1)
+  log_sd_samples = inla.posterior.sample(sd_res, n = n_sd_samples, seed = 1)
   log_sd_pars = inla_gaussian_pars(
     samples = log_sd_samples,
     data = sd_prediction_data,
@@ -105,16 +105,6 @@ for (i in seq_along(hour_vec)) {
       if (is.null(res)) return(NULL)
       set.seed(1)
       samples = inla.posterior.sample(100, res, seed = 1)
-
-      est_pars = inla_bgev_pars(
-        samples = samples,
-        data = prediction_data,
-        covariate_names = list(covariate_names[[1]], NULL, NULL),
-        s_est = res$standardising_const * sd_samples[, i][-(1:nrow(sd_df))],
-        mesh = mesh,
-        coords = st_geometry(prediction_data))
-      message("iter nr. ", i, " mean: ", mean(as.numeric(est_pars$q)))
-      message("iter nr. ", i, " sd: ", sd(as.numeric(est_pars$q)))
       list(const = res$standardising_const, samples = samples)
     })
 
@@ -150,7 +140,6 @@ for (i in seq_along(hour_vec)) {
 #saveRDS(stats, file.path(here::here(), "inst", "extdata", "return-level-stats.rds"))
 
 # Plot the results ===================================================
-
 my_breaks = c(8, 12, 16, 20, 24, 28)
 p1 = stats[[1]]$fun %>%
   cbind(st_geometry(prediction_data)) %>%
