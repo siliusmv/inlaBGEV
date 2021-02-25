@@ -59,6 +59,7 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
   sd_inla_args$data = INLA::inla.stack.data(sd_stack)
   sd_inla_args$data$sd_spde = sd_spde
+  sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
 
   # Run R-INLA
   sd_res = do.call(inla, sd_inla_args)
@@ -72,8 +73,8 @@ for (i in seq_along(hour_vec)) {
     covariate_names = covariate_names[[2]],
     mesh = mesh,
     coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-  sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
-    log_sd_pars$μ %>%
+  sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
+    #log_sd_pars$μ %>%
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
 
@@ -148,6 +149,7 @@ for (i in seq_along(hour_vec)) {
     data = data,
     covariate_names = covariate_names,
     response_name = "value",
+    verbose = TRUE,
     spde = spde,
     α = α,
     β = β)
