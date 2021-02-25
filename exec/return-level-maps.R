@@ -15,12 +15,12 @@ hour_vec = c(1, 3, 6)
 β = .8
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
-n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
+n_sd_samples = 40 # Number of samples drawn from the distribution of the SD
 num_cores = 6 # Number of cores used for parallel computations
 
 # A list containing covariate_names for location, spread and tail parameter
-covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea", "wetdays"),
-                       c("x", "y", "height", "dist_sea"), NULL)
+covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
+                       c("x", "y", "dist_sea"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
@@ -81,18 +81,10 @@ for (i in seq_along(hour_vec)) {
     covariate_names = covariate_names[[2]],
     mesh = mesh,
     coords = st_geometry(sd_prediction_data))
-  sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
+  sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
+    log_sd_pars$μ %>%
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
-
-  for (j in 1:ncol(sd_samples)) {
-  sd_samples[-(1:nrow(sd_df)), j] %>%
-    as.data.frame() %>%
-    cbind(st_geometry(prediction_data)) %>%
-    st_as_sf() %>%
-    plot_grid(response = ".") %>%
-    print()
-  }
 
   # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
   samples = parallel::mclapply(
@@ -129,20 +121,30 @@ for (i in seq_along(hour_vec)) {
     seq_along(samples),
     function(i) samples[[i]]$const * sd_samples[-(1:nrow(sd_df)), i])
 
-  mystats = list()
-  for (j in seq_along(samples)) {
-    mystats[[j]] = inla_bgev_stats(
-      sample_list = list(samples[[j]]$samples),
-      data = prediction_data,
-      covariate_names = list(covariate_names[[1]], NULL, NULL),
-      s_list = s_est[j],
-      mesh = mesh,
-      n_batches = 50,
-      fun = function(pars) {
-        locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
-        return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
-      })
-  }
+  #mystats = list()
+  #for (j in seq_along(samples)) {
+  #  mystats[[j]] = inla_bgev_stats(
+  #    sample_list = list(samples[[j]]$samples),
+  #    data = prediction_data,
+  #    covariate_names = list(covariate_names[[1]], NULL, NULL),
+  #    s_list = s_est[j],
+  #    mesh = mesh,
+  #    n_batches = 50,
+  #    fun = function(pars) {
+  #      locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
+  #      return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
+  #    })
+  #}
+
+  #plots = list()
+  #for (j in seq_along(mystats)) {
+  #  plots[[j]] = mystats[[j]]$fun %>%
+  #    #dplyr::mutate(mean = s_est[[j]]) %>%
+  #    cbind(st_geometry(prediction_data)) %>%
+  #    st_as_sf() %>%
+  #    plot_stats()
+  #}
+
 
   # Compute parameter stats and return level stats at all locations
   stats[[i]] = inla_bgev_stats(

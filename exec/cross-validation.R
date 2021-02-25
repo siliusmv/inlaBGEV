@@ -6,15 +6,15 @@ library(INLA)
 hour_vec = c(1, 3, 6)
 α = .5
 β = .8
-min_sd_years = 6L # Minimum number of years before we use the computed SD values
+min_sd_years = 4L # Minimum number of years before we use the computed SD values
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
 num_cores = 6 # Number of cores used for parallel computations
 n_folds = 5
 p0 = .9
 
 # A list containing covariate_names for location, spread and tail parameter
-covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea", "wetdays"),
-                       c("x", "y", "height", "dist_sea"), NULL)
+covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
+                       c("x", "y", "dist_sea"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
@@ -86,7 +86,8 @@ for (i in seq_along(hour_vec)) {
       covariate_names = covariate_names[[2]],
       mesh = mesh,
       coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-    sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
+    sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
+      log_sd_pars$μ %>%
       matrix(nrow = nrow(log_sd_pars$μ)) %>%
       exp()
 

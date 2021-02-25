@@ -66,7 +66,7 @@ for (i in 1:n_trials) {
     mc.cores = num_cores,
     mc.preschedule = FALSE,
     FUN = function(i) {
-      noisy_s = s[location_indices] * rnorm(n, mean = 1, sd = .1)
+      noisy_s = s[location_indices] * rnorm(n, mean = 1, sd = .15)
       res = tryCatch({
         inla_bgev(
           data = data,
@@ -76,7 +76,6 @@ for (i in 1:n_trials) {
           α = α,
           β = β)},
         error = function(e) NULL)
-      message("Done with iter nr. ", i)
       if (is.null(res) || !res$convergence) return(NULL)
       inla.posterior.sample(100, res, seed = 1) %>%
         sapply(function(x) x$hyper[2])
