@@ -33,7 +33,7 @@ for (i in seq_along(hour_vec)) {
   # and in the prediction data
   data = dplyr::left_join(observations, estimated_sd, by = c("id", "n_hours", "n_years")) %>%
     dplyr::filter(n_hours == !!n_hours)
-  standardisation_stats = get_stats_for_standardisation(data, unique(unlist(covariate_names[[1]])))
+  standardisation_stats = get_stats_for_standardisation(data, unique(unlist(covariate_names)))
   data = standardise(data, standardisation_stats)
   prediction_data = standardise(prediction_grid, standardisation_stats)
 
