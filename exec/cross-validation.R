@@ -97,6 +97,7 @@ for (i in seq_along(hour_vec)) {
     in_sample_data = dplyr::filter(data, id %in% ids[folds != j])
 
     # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
+    message("Start out-of-sample evaluation")
     samples = parallel::mclapply(
       X = seq_len(n_sd_samples),
       mc.cores = num_cores,
@@ -112,12 +113,12 @@ for (i in seq_along(hour_vec)) {
             α = α,
             β = β)},
           error = function(e) NULL)
-        message("Done with iter nr. ", i)
         if (is.null(res) || !res$convergence) return(NULL)
         set.seed(1)
         samples = inla.posterior.sample(100, res, seed = 1)
         list(const = res$standardising_const, samples = samples)
       })
+    message("Done with out-of-sample two-step model")
 
     # Sometimes, INLA might have some numerical problems. Remove the bad models
     bad_samples = which(sapply(samples, is.null))
@@ -165,7 +166,7 @@ for (i in seq_along(hour_vec)) {
     }
     stats[[i]]$out_of_sample_twostep[[j]] = twcrps
 
-    # Use joint modelling, out of sample
+    # Use joint modelling, out-of-sample
     res2 = tryCatch(inla_bgev(
       data = in_sample_data,
       covariate_names = covariate_names,
@@ -173,6 +174,7 @@ for (i in seq_along(hour_vec)) {
       spde = spde,
       α = α,
       β = β), error = function(e) NULL)
+    message("Done with out-of-sample joint model")
 
     if (!is.null(res2)) {
       samples2 = inla.posterior.sample(100 * length(samples), res2)
@@ -197,6 +199,7 @@ for (i in seq_along(hour_vec)) {
     }
 
     # Do the same stuff, but in-sample
+    message("Start in-sample evaluation")
     sd_stack = inla_stack(sd_df, covariate_names[[2]],
                           response_name = "log_sd", spde = sd_spde)
     sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
@@ -230,12 +233,12 @@ for (i in seq_along(hour_vec)) {
             α = α,
             β = β)},
           error = function(e) NULL)
-        message("Done with iter nr. ", i)
         if (is.null(res) || !res$convergence) return(NULL)
         set.seed(1)
         samples = inla.posterior.sample(100, res, seed = 1)
         list(const = res$standardising_const, samples = samples)
       })
+    message("Done with in-sample two-step model")
 
     bad_samples = which(sapply(samples, is.null))
     if (any(bad_samples)) {
@@ -283,6 +286,7 @@ for (i in seq_along(hour_vec)) {
       spde = spde,
       α = α,
       β = β), error = function(e) NULL)
+    message("Done with in-sample joint model")
 
     if (!is.null(res2)) {
       samples2 = inla.posterior.sample(100 * length(samples), res2)
@@ -309,8 +313,18 @@ for (i in seq_along(hour_vec)) {
     message("Done with fold nr. ", j)
   }
 
-  message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
+  message("=========================================\n",
+          hour_vec[i], " hour(s)\n",
+          "=========================================")
+  message("In sample, twostep:")
+  print(data_stats(unlist(stats[[i]]$in_sample_twostep)))
+  message("In sample, joint:")
+  print(data_stats(unlist(stats[[i]]$in_sample_joint)))
+  message("Out of sample, twostep:")
+  print(data_stats(unlist(stats[[i]]$out_of_sample_twostep)))
+  message("Out of sample, joint:")
+  print(data_stats(unlist(stats[[i]]$out_of_sample_joint)))
 }
 
 saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"))
