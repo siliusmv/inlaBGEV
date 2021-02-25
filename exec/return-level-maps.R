@@ -15,12 +15,15 @@ hour_vec = c(1, 3, 6)
 β = .8
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
-n_sd_samples = 40 # Number of samples drawn from the distribution of the SD
-num_cores = 6 # Number of cores used for parallel computations
+n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
+num_cores = 10 # Number of cores used for parallel computations
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
                        c("x", "y", "dist_sea"), NULL)
+covariate_names = list(
+  c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction"),
+  c("x", "y", "dist_sea", "log_height"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
@@ -163,7 +166,7 @@ for (i in seq_along(hour_vec)) {
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
 
-#saveRDS(stats, file.path(here::here(), "inst", "extdata", "return-level-stats.rds"))
+saveRDS(stats, file.path(here::here(), "inst", "extdata", "return-level-stats.rds"))
 
 # Plot the results ===================================================
 my_breaks = c(8, 12, 16, 20, 24, 28)
@@ -191,5 +194,5 @@ text_size = 8
 myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
   theme(text = element_text(size = text_size))
 
-#tikz_plot(file.path(here::here(), "inst", "extdata", "1-3-6-hour-return-level-maps.pdf"),
-#          print(myplot), width = 7, height = 10)
+tikz_plot(file.path(here::here(), "inst", "extdata", "1-3-6-hour-return-level-maps.pdf"),
+          print(myplot), width = 7, height = 10)

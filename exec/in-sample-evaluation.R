@@ -13,8 +13,11 @@ num_cores = 6 # Number of cores used for parallel computations
 p0 = .9
 
 # A list containing covariate_names for location, spread and tail parameter
-covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea", "wetdays"),
-                       c("x", "y", "height", "dist_sea"), NULL)
+#covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea", "wetdays"),
+#                       c("x", "y", "height", "dist_sea"), NULL)
+covariate_names = list(
+  c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction"),
+  c("x", "y", "dist_sea", "log_height"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
@@ -23,7 +26,7 @@ for (i in seq_along(hour_vec)) {
   # Filter out the data of interest and standardise the covariates in the observations data
   data = dplyr::left_join(observations, estimated_sd, by = c("id", "n_hours", "n_years")) %>%
     dplyr::filter(n_hours == !!n_hours)
-  standardisation_stats = get_stats_for_standardisation(data, covariate_names[[1]])
+  standardisation_stats = get_stats_for_standardisation(data, unique(unlist(covariate_names)))
   data = standardise(data, standardisation_stats)
 
   # Create the mesh used for modelling, and define the prior for the
@@ -58,18 +61,19 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$data$sd_spde = sd_spde
 
   # Run R-INLA
-  s_res = do.call(inla, sd_inla_args)
+  sd_res = do.call(inla, sd_inla_args)
 
   # Sample from the distribution of the SD at all observation locations
   set.seed(1)
-  log_sd_samples = inla.posterior.sample(s_res, n = n_sd_samples, seed = 1)
+  log_sd_samples = inla.posterior.sample(sd_res, n = n_sd_samples, seed = 1)
   log_sd_pars = inla_gaussian_pars(
     samples = log_sd_samples,
     data = dplyr::distinct(data, id, .keep_all = TRUE),
     covariate_names = covariate_names[[2]],
     mesh = mesh,
     coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-  sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
+  sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(log_sd_pars$τ)) %>%
+    log_sd_pars$μ %>%
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
 
@@ -101,7 +105,7 @@ for (i in seq_along(hour_vec)) {
   bad_samples = which(sapply(samples, is.null))
   if (any(bad_samples)) {
     samples = samples[-bad_samples]
-    sd_samples = sd_samples[-bad_samples]
+    sd_samples = sd_samples[, -bad_samples]
   }
 
   # Compute the SD multiplied with the standardising const at all observation locations
@@ -166,7 +170,7 @@ for (i in seq_along(hour_vec)) {
                                           est_pars2$ξ[j, ], α, β)
     twcrps2[[j]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
-  stats[[i]]$joint_modelling = data_stats(as.numeric(unlist(twcrps2)))
+  stats[[i]]$joint = data_stats(as.numeric(unlist(twcrps2)))
 
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples) / 100, " of ", n_sd_samples)
@@ -182,5 +186,5 @@ for (i in seq_along(stats)) {
   message("With standardisation:")
   print(stats[[i]]$two_step)
   message("With direct modelling:")
-  print(stats[[i]]$joint_modelling)
+  print(stats[[i]]$joint)
 }

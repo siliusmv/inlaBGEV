@@ -8,21 +8,24 @@ hour_vec = c(1, 3, 6)
 β = .8
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
-num_cores = 6 # Number of cores used for parallel computations
+num_cores = 20 # Number of cores used for parallel computations
 n_folds = 5
 p0 = .9
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
                        c("x", "y", "dist_sea"), NULL)
+covariate_names = list(
+  c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction"),
+  c("x", "y", "dist_sea", "log_height"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
   stats[[i]] = list(
     in_sample_twostep = list(),
     out_of_sample_twostep = list(),
-    in_sample_direct = list(),
-    out_of_sample_direct = list())
+    in_sample_joint = list(),
+    out_of_sample_joint = list())
   n_hours = hour_vec[i]
 
   # Filter out the data of interest and standardise the covariates in the observations data
@@ -162,7 +165,7 @@ for (i in seq_along(hour_vec)) {
     }
     stats[[i]]$out_of_sample_twostep[[j]] = twcrps
 
-    # Use direct modelling, out of sample
+    # Use joint modelling, out of sample
     res2 = tryCatch(inla_bgev(
       data = in_sample_data,
       covariate_names = covariate_names,
@@ -190,7 +193,7 @@ for (i in seq_along(hour_vec)) {
                                               est_pars2$ξ[k, ], α, β)
         twcrps2[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
       }
-      stats[[i]]$out_of_sample_direct[[j]] = twcrps2
+      stats[[i]]$out_of_sample_joint[[j]] = twcrps2
     }
 
     # Do the same stuff, but in-sample
@@ -300,7 +303,7 @@ for (i in seq_along(hour_vec)) {
                                               est_pars2$ξ[k, ], α, β)
         twcrps2[[k]] = twcrps_gev(obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
       }
-      stats[[i]]$in_sample_direct[[j]] = twcrps2
+      stats[[i]]$in_sample_joint[[j]] = twcrps2
     }
 
     message("Done with fold nr. ", j)
@@ -310,7 +313,7 @@ for (i in seq_along(hour_vec)) {
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
 
-#saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"))
+saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"))
 
 for (i in seq_along(stats)) {
   for (j in seq_along(stats[[i]])) {
@@ -325,10 +328,10 @@ for (i in seq_along(stats)) {
           "=========================================")
   message("In sample, twostep:")
   print(stats[[i]]$in_sample_twostep)
-  message("In sample, direct:")
-  print(stats[[i]]$in_sample_direct)
+  message("In sample, joint:")
+  print(stats[[i]]$in_sample_joint)
   message("Out of sample, twostep:")
   print(stats[[i]]$out_of_sample_twostep)
-  message("Out of sample, direct:")
-  print(stats[[i]]$out_of_sample_direct)
+  message("Out of sample, joint:")
+  print(stats[[i]]$out_of_sample_joint)
 }

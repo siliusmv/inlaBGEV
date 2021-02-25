@@ -122,9 +122,7 @@ mydf = lapply(
       names(x$twostep) = c("mean", "sd", "0.025quant", "0.5quant", "0.975quant")
     }
     res = as.data.frame(rbind(x$joint, x$twostep))
-    res$tag = c("Modelling all parameters jointly",
-                "Modelling with a twostep procedure")[
-                  c(!is.null(x$joint), !is.null(x$twostep))]
+    res$tag = c("Joint model", "Two-step model")[c(!is.null(x$joint), !is.null(x$twostep))]
     res$truth = x$truth
     res$x = i
     res$n_s = x$n_s
@@ -145,5 +143,5 @@ plot = mydf %>%
   theme(axis.title.y = element_text(angle = 0, vjust = 0.5),
         text = element_text(size = 20))
 
-#tikz_plot(file.path(here::here(), "inst", "extdata", "two-step-performance.pdf"),
-#          print(plot), width = 10, height = 7, view = TRUE)
+tikz_plot(file.path(here::here(), "inst", "extdata", "simulation-study.pdf"),
+          print(plot), width = 10, height = 7, view = TRUE)
