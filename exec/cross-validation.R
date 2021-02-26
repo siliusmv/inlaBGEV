@@ -61,6 +61,75 @@ for (i in seq_along(hour_vec)) {
     prior.sigma = c(1, .05),
     prior.range = c(75, .05))
 
+  # Perform in-sample estimation using all the data
+  message("Start in-sample evaluation")
+  sd_stack = inla_stack(sd_df, covariate_names[[2]],
+                        response_name = "log_sd", spde = sd_spde)
+  sd_inla_formula = as.formula(paste("log_sd ~ -1 + intercept +",
+                                     paste(covariate_names[[2]], collapse = " + "),
+                                     "+ f(matern_field, model = sd_spde)"))
+  sd_inla_args = inla_default_args("gaussian")
+  sd_inla_args$formula = sd_inla_formula
+  sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
+  sd_inla_args$data = INLA::inla.stack.data(sd_stack)
+  sd_inla_args$data$sd_spde = sd_spde
+  sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
+  s_res = do.call(inla, sd_inla_args)
+  set.seed(1)
+  log_sd_samples = inla.posterior.sample(s_res, n = n_sd_samples, seed = 1)
+  log_sd_pars = inla_gaussian_pars(
+    samples = log_sd_samples,
+    data = dplyr::distinct(data, id, .keep_all = TRUE),
+    covariate_names = covariate_names[[2]],
+    mesh = mesh,
+    coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
+  in_sample_sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
+    matrix(nrow = nrow(log_sd_pars$μ)) %>%
+    exp()
+
+  in_sample_samples = parallel::mclapply(
+    X = seq_len(n_sd_samples),
+    mc.cores = num_cores,
+    mc.preschedule = FALSE,
+    FUN = function(i) {
+      res = tryCatch({
+        inla_bgev(
+          data = data,
+          s_est = in_sample_sd_samples[, i],
+          covariate_names = list(covariate_names[[1]], NULL, NULL),
+          response_name = "value",
+          spde = spde,
+          α = α,
+          β = β)},
+        error = function(e) NULL)
+      if (is.null(res) || !res$convergence) return(NULL)
+      set.seed(1)
+      samples = inla.posterior.sample(100, res, seed = 1)
+      list(const = res$standardising_const, samples = samples)
+    })
+  message("Done with in-sample two-step model")
+
+  bad_samples = which(sapply(in_sample_samples, is.null))
+  if (any(bad_samples)) {
+    in_sample_samples = in_sample_samples[-bad_samples]
+    in_sample_sd_samples = in_sample_sd_samples[, -bad_samples]
+  }
+
+  in_sample_res2 = tryCatch(inla_bgev(
+    data = data,
+    covariate_names = covariate_names,
+    response_name = "value",
+    spde = spde,
+    α = α,
+    β = β), error = function(e) NULL)
+  message("Done with in-sample joint model")
+
+  if (!is.null(in_sample_res2)) {
+    in_sample_samples2 = inla.posterior.sample(100 * length(in_sample_samples), in_sample_res2)
+  }
+
+
+  message("Start with the out-of-sample modelling")
   for (j in seq_len(n_folds)) {
 
     in_sample_sd_df = dplyr::filter(sd_df, id %in% ids[folds != j])
@@ -98,7 +167,6 @@ for (i in seq_along(hour_vec)) {
     in_sample_data = dplyr::filter(data, id %in% ids[folds != j])
 
     # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
-    message("Start out-of-sample evaluation")
     samples = parallel::mclapply(
       X = seq_len(n_sd_samples),
       mc.cores = num_cores,
@@ -119,7 +187,7 @@ for (i in seq_along(hour_vec)) {
         samples = inla.posterior.sample(100, res, seed = 1)
         list(const = res$standardising_const, samples = samples)
       })
-    message("Done with out-of-sample two-step model")
+    message("Done with out-of-sample two-step model for fold ", i)
 
     # Sometimes, INLA might have some numerical problems. Remove the bad models
     bad_samples = which(sapply(samples, is.null))
@@ -175,7 +243,7 @@ for (i in seq_along(hour_vec)) {
       spde = spde,
       α = α,
       β = β), error = function(e) NULL)
-    message("Done with out-of-sample joint model")
+    message("Done with out-of-sample joint model for fold ", i)
 
     if (!is.null(res2)) {
       samples2 = inla.posterior.sample(100 * length(samples), res2)
@@ -199,62 +267,15 @@ for (i in seq_along(hour_vec)) {
       stats[[i]]$out_of_sample_joint[[j]] = twcrps2
     }
 
-    # Do the same stuff, but in-sample
-    message("Start in-sample evaluation")
-    sd_stack = inla_stack(sd_df, covariate_names[[2]],
-                          response_name = "log_sd", spde = sd_spde)
-    sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
-    sd_inla_args$data = INLA::inla.stack.data(sd_stack)
-    sd_inla_args$data$sd_spde = sd_spde
-    s_res = do.call(inla, sd_inla_args)
-    set.seed(1)
-    log_sd_samples = inla.posterior.sample(s_res, n = n_sd_samples, seed = 1)
-    log_sd_pars = inla_gaussian_pars(
-      samples = log_sd_samples,
-      data = dplyr::distinct(data, id, .keep_all = TRUE),
-      covariate_names = covariate_names[[2]],
-      mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-    sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
-      matrix(nrow = nrow(log_sd_pars$μ)) %>%
-      exp()
-
-    samples = parallel::mclapply(
-      X = seq_len(n_sd_samples),
-      mc.cores = num_cores,
-      mc.preschedule = FALSE,
-      FUN = function(i) {
-        res = tryCatch({
-          inla_bgev(
-            data = data,
-            s_est = sd_samples[, i],
-            covariate_names = list(covariate_names[[1]], NULL, NULL),
-            response_name = "value",
-            spde = spde,
-            α = α,
-            β = β)},
-          error = function(e) NULL)
-        if (is.null(res) || !res$convergence) return(NULL)
-        set.seed(1)
-        samples = inla.posterior.sample(100, res, seed = 1)
-        list(const = res$standardising_const, samples = samples)
-      })
-    message("Done with in-sample two-step model")
-
-    bad_samples = which(sapply(samples, is.null))
-    if (any(bad_samples)) {
-      samples = samples[-bad_samples]
-      sd_samples = sd_samples[, -bad_samples]
-    }
-
+    message("Compute in-sample twCRPS for fold ", i)
     s_est = lapply(
-      seq_along(samples),
-      function(i) samples[[i]]$const * sd_samples[, i][folds == j])
+      seq_along(in_sample_samples),
+      function(i) in_sample_samples[[i]]$const * in_sample_sd_samples[, i][folds == j])
 
     est_pars = list()
-    for (k in seq_along(samples)) {
+    for (k in seq_along(in_sample_samples)) {
       est_pars[[k]] = inla_bgev_pars(
-        samples = samples[[k]]$samples,
+        samples = in_sample_samples[[k]]$samples,
         data = leave_out_data,
         covariate_names = list(covariate_names[[1]], NULL, NULL),
         s_est = s_est[[k]],
@@ -280,23 +301,12 @@ for (i in seq_along(hour_vec)) {
     }
     stats[[i]]$in_sample_twostep[[j]] = twcrps
 
-    res2 = tryCatch(inla_bgev(
-      data = data,
-      covariate_names = covariate_names,
-      response_name = "value",
-      spde = spde,
-      α = α,
-      β = β), error = function(e) NULL)
-    message("Done with in-sample joint model")
-
-    if (!is.null(res2)) {
-      samples2 = inla.posterior.sample(100 * length(samples), res2)
-
+    if (!is.null(in_sample_res2)) {
       est_pars2 = inla_bgev_pars(
-        samples = samples2,
+        samples = in_sample_samples2,
         data = leave_out_data,
         covariate_names = covariate_names,
-        s_est = rep(res2$standardising_const, nrow(leave_out_data)),
+        s_est = rep(in_sample_res2$standardising_const, nrow(leave_out_data)),
         mesh = mesh,
         coords = st_geometry(leave_out_data))
 
