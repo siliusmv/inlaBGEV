@@ -16,13 +16,13 @@ num_cores = 12
 #inla.setOption(pardiso.license = "~/.R/licences/pardiso.lic")
 
 tail_estimates = list()
-set.seed(1, kind = "L'Ecuyer-CMRG")
+set.seed(123, kind = "L'Ecuyer-CMRG")
 for (i in 1:n_trials) {
   # Use a location parameter of 0, draw random coefficients for s and a random tail parameter
   q = rep(0, n_loc)
   n_s = sample.int(4, 1)
-  s_coeffs = c(runif(1, 1, 3), rnorm(n_s, 0, 1 / sqrt(10)))
-  ξ = runif(1, .01, .3)
+  s_coeffs = c(runif(1, 1, 3), rnorm(n_s, 0, .4))
+  ξ = runif(1, .01, .4)
 
   s_cov_names = paste0("s_", 1:n_s)
   names(s_coeffs) = c("intercept", s_cov_names)
