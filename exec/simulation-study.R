@@ -21,7 +21,7 @@ for (i in 1:n_trials) {
   # Use a location parameter of 0, draw random coefficients for s and a random tail parameter
   q = rep(0, n_loc)
   n_s = sample.int(4, 1)
-  s_coeffs = c(runif(1) * 2 + 1, rnorm(n_s) * .4)
+  s_coeffs = c(runif(1, 1, 3), rnorm(n_s, 0, 1 / sqrt(10)))
   ξ = runif(1, .01, .3)
 
   s_cov_names = paste0("s_", 1:n_s)
@@ -137,11 +137,12 @@ plot = mydf %>%
   geom_point(aes(y = truth, col = n_s)) +
   #scale_shape_manual(values = c(15, 16, 17, 18)) +
   facet_wrap(~tag, nrow = 2) +
-  labs(y = "$\\xi$", x = "Simulation nr.", col = "$|\\beta_s|$") +
+  labs(y = "$\\xi$", x = "Simulation nr.", col = "$|\\bm{\\beta}|$") +
   theme_bw() +
   #theme_linedraw() +
   theme(axis.title.y = element_text(angle = 0, vjust = 0.5),
         text = element_text(size = 20))
+
 
 tikz_plot(file.path(here::here(), "inst", "extdata", "simulation-study.pdf"),
           print(plot), width = 10, height = 7, view = TRUE)

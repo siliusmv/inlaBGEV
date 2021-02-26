@@ -51,7 +51,18 @@ tikz_plot = function(file, expression, view = FALSE, ...) {
     }
   }
   tmp = tempfile(tmpdir = getwd())
-  tikzDevice::tikz(tmp, standAlone = TRUE, ...)
+  # Extract default tex usepackages
+  opt = options()
+  on.exit(options(opt)) #Reset global options on exit
+  tikzDevice::setTikzDefaults(overwrite = FALSE)
+  tex_packages = options()$tikzLatexPackages
+  if (!any(grepl("usepackage\\{bm\\}", tex_packages))) {
+    tex_packages = c(tex_packages, "\\usepackage{bm}\n")
+  }
+  tikzDevice::tikz(tmp, standAlone = TRUE, packages = tex_packages, ...)
+  current_device = dev.cur()
+  on.exit(dev.off(current_device)) # Call dev.off() on exit in case of interruptions
+  on.exit(suppressWarnings(file.remove(tmp)), add = TRUE) # Clean up after yourself on exit
   eval(substitute(expression), envir = parent.frame())
   dev.off()
   system2("pdflatex", tmp)
