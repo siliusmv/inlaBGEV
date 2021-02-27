@@ -38,7 +38,8 @@ get_proj_xy = function() {
 }
 
 #' @export
-tikz_plot = function(file, expression, view = FALSE, ...) {
+tikz_plot = function(file, plot = NULL, expression = NULL, view = FALSE, ...) {
+  # Ensure that you are on an operating system that you have tested
   operating_system = Sys.info()[["sysname"]]
   if (operating_system == "Windows") {
     proceed = readline(paste("This function was written on a Mac.",
@@ -50,8 +51,13 @@ tikz_plot = function(file, expression, view = FALSE, ...) {
       stop("Invalid input")
     }
   }
+
+  # Create a temporary file for the tikz-output
   tmp = tempfile(tmpdir = getwd())
-  # Extract default tex usepackages
+  # Clean up after yourself on early interrupt
+  on.exit(suppressWarnings(file.remove(tmp)), add = TRUE)
+
+  # Extract default tex usepackages and add the bm package for bold greek letters
   opt = options()
   on.exit(options(opt)) #Reset global options on exit
   tikzDevice::setTikzDefaults(overwrite = FALSE)
@@ -59,17 +65,39 @@ tikz_plot = function(file, expression, view = FALSE, ...) {
   if (!any(grepl("usepackage\\{bm\\}", tex_packages))) {
     tex_packages = c(tex_packages, "\\usepackage{bm}\n")
   }
+
+  # Open a device for creating a tex-file
   tikzDevice::tikz(tmp, standAlone = TRUE, packages = tex_packages, ...)
+  # Call dev.off() on exit in case of interruptions
   current_device = dev.cur()
-  on.exit(dev.off(current_device)) # Call dev.off() on exit in case of interruptions
-  on.exit(suppressWarnings(file.remove(tmp)), add = TRUE) # Clean up after yourself on exit
-  eval(substitute(expression), envir = parent.frame())
+  on.exit(dev.off(current_device))
+
+  # Plot something into the tex-file
+  if (!is.null(plot)) {
+    if (any(class(plot) %in% c("gg", "ggplot", "patchwork"))) {
+      print(plot)
+    } else {
+      for (p in plot) print(p)
+    }
+  } else {
+    eval(substitute(expression), envir = parent.frame())
+  }
+
+  # Finish the creation of the tex-file
   dev.off()
+
+  # Compile to pdf
   system2("pdflatex", tmp)
+
+  # Copy pdf file to final destination
   file.copy(paste0(tmp, ".pdf"), file, overwrite = TRUE)
+
+  # Clean up all temporary files
   tmp_filename = tail(strsplit(tmp, "/")[[1]], 1)
   files_to_clean = grep(tmp_filename, list.files(full.names = TRUE), value = TRUE)
   file.remove(files_to_clean)
+
+  # Open the pdf with the final output
   if (view) {
     if (operating_system == "Darwin") {
       system2("open", file)
