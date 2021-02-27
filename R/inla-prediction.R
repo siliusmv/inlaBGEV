@@ -60,7 +60,7 @@ inla_gaussian_pars = function(samples,
   X = dplyr::select(data, tidyselect::all_of(unique(unlist(covariate_names)))) %>%
     dplyr::distinct(.keep_all = TRUE)
   if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
-  X = as.matrix(X)
+  X = cbind(intercept = 1, as.matrix(X))
 
   # Extract all coefficients from the samples
   coeffs = inla_gaussian_coeffs(samples, covariate_names)
@@ -69,7 +69,7 @@ inla_gaussian_pars = function(samples,
   if (is.null(dim(coeffs$μ))) {
     μ = coeffs$μ
   } else {
-    μ = coeffs$μ[1, ] + X[, covariate_names] %*% coeffs$μ[-1, ]
+    μ = X[, c("intercept", covariate_names)] %*% coeffs$μ
   }
   τ = matrix(rep(coeffs$τ, each = nrow(X)), ncol = length(samples))
 
@@ -93,7 +93,7 @@ inla_bgev_pars = function(samples,
   X = dplyr::select(data, tidyselect::all_of(unique(unlist(covariate_names)))) %>%
     dplyr::distinct(.keep_all = TRUE)
   if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
-  X = as.matrix(X)
+  X = cbind(intercept = 1, as.matrix(X))
 
   # Extract all coefficients from the samples
   coeffs = inla_bgev_coeffs(samples, covariate_names)
@@ -102,12 +102,12 @@ inla_bgev_pars = function(samples,
   if (is.null(dim(coeffs$q))) {
     q = coeffs$q
   } else {
-    q = coeffs$q[1, ] + X[, covariate_names[[1]]] %*% coeffs$q[-1, ]
+    q = X[, c("intercept", covariate_names[[1]])] %*% coeffs$q
   }
   if (is.null(dim(coeffs$s))) {
     s = matrix(rep(coeffs$s, each = nrow(X)), ncol = length(samples))
   } else {
-    s = coeffs$s[1, ] * exp(X[, covariate_names[[2]]] %*% coeffs$s[-1, ])
+    s = exp(X[, c("intercept", covariate_names[[2]])] %*% coeffs$s)
   }
   ξ = matrix(rep(coeffs$ξ, each = nrow(X)), ncol = length(samples))
 
@@ -115,14 +115,16 @@ inla_bgev_pars = function(samples,
   # and add it to the location parameter
   is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
   if (is_matern_field) q = q + inla_sample_matern_field(samples, mesh, coords)
+  if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
 
   # If the response had been standardised, compute un-standardised parameters
   if (!is.null(s_est)) {
     s = s * matrix(rep(s_est, length(samples)), ncol = length(samples))
     q = q * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
   }
 
-  list(q = q, s = s, ξ = ξ)
+  list(q = q, s = s, ξ = ξ, matern = matern)
 }
 
 inla_bgev_coeffs = function(samples, covariate_names) {
