@@ -187,7 +187,7 @@ for (i in seq_along(hour_vec)) {
         samples = inla.posterior.sample(100, res, seed = 1)
         list(const = res$standardising_const, samples = samples)
       })
-    message("Done with out-of-sample two-step model for fold ", i)
+    message("Done with out-of-sample two-step model for fold ", j)
 
     # Sometimes, INLA might have some numerical problems. Remove the bad models
     bad_samples = which(sapply(samples, is.null))
@@ -243,7 +243,7 @@ for (i in seq_along(hour_vec)) {
       spde = spde,
       α = α,
       β = β), error = function(e) NULL)
-    message("Done with out-of-sample joint model for fold ", i)
+    message("Done with out-of-sample joint model for fold ", j)
 
     if (!is.null(res2)) {
       samples2 = inla.posterior.sample(100 * length(samples), res2)
@@ -267,7 +267,7 @@ for (i in seq_along(hour_vec)) {
       stats[[i]]$out_of_sample_joint[[j]] = twcrps2
     }
 
-    message("Compute in-sample twCRPS for fold ", i)
+    message("Compute in-sample twCRPS for fold ", j)
     s_est = lapply(
       seq_along(in_sample_samples),
       function(i) in_sample_samples[[i]]$const * in_sample_sd_samples[, i][folds == j])
