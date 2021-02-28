@@ -107,7 +107,8 @@ inla_bgev_pars = function(samples,
   if (is.null(dim(coeffs$s))) {
     s = matrix(rep(coeffs$s, each = nrow(X)), ncol = length(samples))
   } else {
-    s = exp(X[, c("intercept", covariate_names[[2]])] %*% coeffs$s)
+    s = matrix(X[, "intercept"], nrow = nrow(X)) %*% coeffs$s[1, ] *
+      exp(X[, covariate_names[[2]]] %*% coeffs$s[-1, ])
   }
   ξ = matrix(rep(coeffs$ξ, each = nrow(X)), ncol = length(samples))
 
