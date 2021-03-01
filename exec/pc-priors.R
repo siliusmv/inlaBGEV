@@ -15,10 +15,11 @@ df$bgev = kld_bgev(df$ξ, approx = FALSE)
 df$bgev_approx = kld_bgev(df$ξ, approx = TRUE)
 
 # Plot KLD
-tidyr::pivot_longer(df, starts_with(c("g", "b"))) %>%
+plot = tidyr::pivot_longer(df, starts_with(c("g", "b"))) %>%
   dplyr::filter(ξ < .4) %>%
   ggplot() +
   geom_line(aes(x = ξ, y = value, col = name, group = name))
+if (interactive()) print(plot)
 # There is almost no difference between the approximated KLD and the numerically computed KLD
 
 # Compute PC prior densities
@@ -30,13 +31,15 @@ df2$bgev = pc_bgev(df2$ξ, λ = 7, approx = FALSE)
 df2$bgev_approx = pc_bgev(df2$ξ, λ = 7, approx = TRUE)
 
 # Plot the densities
-tidyr::pivot_longer(df2, starts_with(c("g", "b"))) %>%
+plot = tidyr::pivot_longer(df2, starts_with(c("g", "b"))) %>%
   ggplot() +
   geom_line(aes(x = ξ, y = value, col = name, group = name))
+if (interactive()) print(plot)
 # With λ = 7, all the PC priors are practically identical. However, there are
 # some considerable differences between the PC prior and its approximation
 # for the GEV distribution
 
+# Create a plot for the article
 plot = df2 %>%
   dplyr::select(-gev_approx, -bgev_approx) %>%
   pivot_longer(starts_with(c("g", "b"))) %>%
@@ -47,7 +50,6 @@ plot = df2 %>%
   scale_linetype_manual(values = c("solid", "dashed", "dotted")) +
   theme_bw() +
   labs(x = "$\\xi$", y = "Density", linetype = "Distribution")
-plot
 
-#tikz_plot(file.path(here::here(), "inst", "extdata", "pc-priors.pdf"),
-#          print(plot), width = 10, height = 7, view = TRUE)
+tikz_plot(file.path(here::here(), "inst", "extdata", "pc-priors.pdf"),
+          plot, width = 10, height = 7, view = TRUE)

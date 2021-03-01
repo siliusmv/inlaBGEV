@@ -7,12 +7,10 @@ library(ggplot2)
 library(patchwork)
 
 # In this script we estimate return level maps for 1, 3, and 6 hour precipitation,
-# using the two-step procedure of sparately modelling the spread in space
+# using the two-step model
 
-
-hour_vec = c(1, 3, 6)
-α = .5
-β = .8
+hour_vec = c(1, 3, 6) # Which aggregation lengths are we examining?
+α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
@@ -113,7 +111,7 @@ for (i in seq_along(hour_vec)) {
       list(const = res$standardising_const, samples = samples)
     })
 
-  # Sometimes, INLA might have some numerical problems. Remove the bad models
+  # Sometimes, R-INLA might have some numerical problems. Remove the bad models
   bad_samples = which(sapply(samples, is.null))
   if (any(bad_samples)) {
     samples = samples[-bad_samples]
@@ -142,13 +140,14 @@ for (i in seq_along(hour_vec)) {
 
   #plots = list()
   #for (j in seq_along(mystats)) {
-  #  plots[[j]] = mystats[[j]]$fun %>%
-  #    #dplyr::mutate(mean = s_est[[j]]) %>%
+  #  plots[[j]] = mystats[[j]]$q %>%
+  #    dplyr::mutate(mean = s_est[[j]]) %>%
+  #    #dplyr::mutate(mean = matern[-(1:nrow(sd_df)), j]) %>%
+  #    dplyr::mutate(mean = μ[-(1:nrow(sd_df)), j]) %>%
   #    cbind(st_geometry(prediction_data)) %>%
   #    st_as_sf() %>%
   #    plot_stats()
   #}
-
 
   # Compute parameter stats and return level stats at all locations
   stats[[i]] = inla_bgev_stats(
@@ -195,5 +194,5 @@ text_size = 8
 myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
   theme(text = element_text(size = text_size))
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "1-3-6-hour-return-level-maps.pdf"),
-          print(myplot), width = 7, height = 10)
+tikz_plot(file.path(here::here(), "inst", "extdata", "return-level-maps.pdf"),
+          myplot, width = 7, height = 10)

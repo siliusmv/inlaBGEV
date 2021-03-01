@@ -13,7 +13,7 @@ library(sf)
 # for trends once more.
 
 
-# functions ==================================================================
+# function for bootstrapping ========================================================
 bootstrap_gev_fit = function(x, n, q = c(.025, .25, .5, .75, .975), ...) {
   pars = matrix(NA, nrow = n, ncol = length(x$estimate))
   for (b in 1:n) {
@@ -26,11 +26,14 @@ bootstrap_gev_fit = function(x, n, q = c(.025, .25, .5, .75, .975), ...) {
 }
 
 # Estimate parameters for different time periods with PWM ============================
-min_years = 4
-α = .5
-β = .8
-hour_vec = c(1, 3, 6)
-covariate_names = c("x", "y", "height", "dist_sea", "precipitation", "wetdays")
+
+min_years = 4 # Minimum number of years needed before we estimate the GEV parameters
+α = .5; β = .8 # Probabilities used in the location and spread parameters
+hour_vec = c(1, 3, 6) # Which aggregation lengths are we examining?
+# All the explanatory variables we are interested in
+covariate_names = c("x", "y", "height", "log_height", "dist_sea", "precipitation",
+                    "summer_precipitation", "summer_precipitation_fraction",
+                    "wetdays", "summer_temperature")
 
 params = list()
 for (i in seq_along(hour_vec)) {
@@ -92,11 +95,10 @@ plot = params %>%
   theme_bw() +
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0))
-plot
+if (interactive()) print(plot)
 
-# tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters.pdf"),
-#           print(plot),
-#           width = 10, height = 7, view = TRUE)
+tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters.pdf"),
+          plot, width = 10, height = 7, view = TRUE)
 
 # Plot parameter estimates with covariates ==============================
 q_plot1 = params %>%
@@ -106,8 +108,10 @@ q_plot1 = params %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Mean daily\nprecipitation", "Mean yearly\nwetdays", "Distance\nfrom sea",
-               "Altitude", "Easting", "Norting"))) %>%
+    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
+               "Distance\nto sea", "Annual\nprecipitation",
+               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
+               "Wetdays", "Summer\ntemperature"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
@@ -118,7 +122,6 @@ q_plot1 = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-q_plot1
 
 s_plot1 = params %>%
   dplyr::filter(par %in% c("s"), !is.na(mean)) %>%
@@ -127,8 +130,10 @@ s_plot1 = params %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Mean daily\nprecipitation", "Mean yearly\nwetdays", "Distance\nfrom sea",
-               "Altitude", "Easting", "Norting"))) %>%
+    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
+               "Distance\nto sea", "Annual\nprecipitation",
+               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
+               "Wetdays", "Summer\ntemperature"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
@@ -139,23 +144,13 @@ s_plot1 = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-s_plot1
 
-# tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_with_covariates.pdf"),
-#           expression = {print(q_plot1); print(s_plot1)},
-#           width = 10, height = 7, view = TRUE)
+tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_with_covariates.pdf"),
+          list(q_plot1, s_plot1), width = 15, height = 11, view = TRUE)
 
 
-
-
-
-# Standardise the response using the standard deviation of heavy precipitation =========
-min_years = 6
-α = .5
-β = .8
-hour_vec = c(1, 3, 6)
-covariate_names = c("x", "y", "height", "dist_sea", "precipitation", "wetdays")
-
+# Standardise the response using the standard deviation of heavy precipitation,
+# then do everything once more
 params2 = list()
 for (i in seq_along(hour_vec)) {
   # Prepare the data
@@ -220,22 +215,23 @@ plot2 = params2 %>%
   theme_bw() +
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0))
-plot2
+if (interactive()) print(plot2)
 
-#tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_twostep.pdf"),
-#          print(plot2),
-#          width = 10, height = 7, view = TRUE)
+tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_twostep.pdf"),
+          plot2, width = 10, height = 7, view = TRUE)
 
 # Plot parameter estimates with covariates ==============================
-q_plot2 = params %>%
+q_plot2 = params2 %>%
   dplyr::filter(par %in% c("q"), !is.na(mean)) %>%
   dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
                                  labels = paste(hour_vec, "hours"))) %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Mean daily\nprecipitation", "Mean yearly\nwetdays", "Distance\nfrom sea",
-               "Altitude", "Easting", "Norting"))) %>%
+    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
+               "Distance\nto sea", "Annual\nprecipitation",
+               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
+               "Wetdays", "Summer\ntemperature"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
@@ -246,17 +242,18 @@ q_plot2 = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-q_plot2
 
-s_plot2 = params %>%
+s_plot2 = params2 %>%
   dplyr::filter(par %in% c("s"), !is.na(mean)) %>%
   dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
                                  labels = paste(hour_vec, "hours"))) %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Mean daily\nprecipitation", "Mean yearly\nwetdays", "Distance\nfrom sea",
-               "Altitude", "Easting", "Norting"))) %>%
+    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
+               "Distance\nto sea", "Annual\nprecipitation",
+               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
+               "Wetdays", "Summer\ntemperature"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
@@ -267,34 +264,7 @@ s_plot2 = params %>%
   theme(text = element_text(size = 20),
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
-s_plot2
 
-sd_plot = params %>%
-  dplyr::filter(!is.na(mean)) %>%
-  dplyr::mutate(n_hours = factor(n_hours, levels = hour_vec,
-                                 labels = paste(hour_vec, "hours"))) %>%
-  tidyr::pivot_longer(all_of(covariate_names)) %>%
-  dplyr::mutate(name = factor(
-    name, levels = covariate_names,
-    labels = c("Mean daily\nprecipitation", "Mean yearly\nwetdays", "Distance\nfrom sea",
-               "Altitude", "Easting", "Norting"))) %>%
-  ggplot() +
-  geom_point(aes(y = sd, x = value), size = .2) +
-  geom_smooth(aes(y = sd, x = value), formula = y ~ x, method = "lm",
-              col = "black", size = .5) +
-  labs(y = "$\\hat{\\text{SD}}_\\beta$", x = "Standardised value") +
-  facet_grid(n_hours ~ name, scales = "free_y") +
-  theme_bw() +
-  theme(text = element_text(size = 20),
-        strip.text.y = element_text(angle = 0),
-        axis.title.y = element_text(angle = 0, vjust = .5))
-sd_plot
-
-
-
-
-
-#tikz_plot(file.path(here::here(), "inst", "extdata",
-#                    "pwm_gev_parameters_twostep_with_covariates.pdf"),
-#          expression = {print(q_plot2); print(s_plot2)},
-#          width = 10, height = 7, view = TRUE)
+tikz_plot(
+  file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_twostep_with_covariates.pdf"),
+  list(q_plot2, s_plot2), width = 15, height = 11, view = TRUE)

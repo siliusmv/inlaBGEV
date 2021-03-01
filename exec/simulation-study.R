@@ -4,25 +4,25 @@ library(dplyr)
 library(inlaBGEV)
 library(parallel)
 
-n_trials = 20
-n_loc = 250
-n = 1500
-α = .5
-β = .8
-n_trials = 30
-n_standardised_samples = 12
-num_cores = 12
+# In this script we perform a simulation study where the performance of the
+# two-step model and the joint model are compared for correctly estimating ξ.
+# We simulate data at different locations and with different explanatory variables many
+# times, and then we use both models for estimation and see which one works the best
 
-#inla.setOption(pardiso.license = "~/.R/licences/pardiso.lic")
+n_loc = 250 # Number of "locations" that the data are sampled from
+α = .5; β = .8 # Probabilities used in the location and spread parameters
+n_trials = 30 # Number of simulations to run
+n_standardised_samples = 12 # Number of samples from the distribution of s^* that are used
+num_cores = 12 # Number of cores used for parallel computations
 
 tail_estimates = list()
-set.seed(123, kind = "L'Ecuyer-CMRG")
+set.seed(123, kind = "L'Ecuyer-CMRG") # Set a seed that works for paralellisation
 for (i in 1:n_trials) {
   # Use a location parameter of 0, draw random coefficients for s and a random tail parameter
   q = rep(0, n_loc)
-  n_s = sample.int(4, 1)
-  s_coeffs = c(runif(1, 1, 3), rnorm(n_s, 0, .4))
-  ξ = runif(1, .01, .4)
+  n_s = sample.int(4, 1) # Number of covariates in the spread
+  s_coeffs = c(runif(1, 1, 3), rnorm(n_s, 0, .4)) # Values for the regression coefficients
+  ξ = runif(1, .01, .4) # Draw the tail parameter
 
   s_cov_names = paste0("s_", 1:n_s)
   names(s_coeffs) = c("intercept", s_cov_names)
@@ -34,7 +34,7 @@ for (i in 1:n_trials) {
   # Simulate the number of observations at each location
   location_indices = c(1:n_loc, sample.int(n_loc, n - n_loc, replace = TRUE))
 
-  # Calculate the spread parameter
+  # Calculate the spread parameter at each location
   s = as.numeric(X %*% s_coeffs)
   s = exp(s)
 
@@ -49,7 +49,7 @@ for (i in 1:n_trials) {
   data = as.data.frame(X[location_indices, ])
   data$obs = observations
 
-  # Run R-INLA
+  # Run R-INLA with the joint model
   res1 = tryCatch(
     inla_bgev(
       data = data,
@@ -58,9 +58,8 @@ for (i in 1:n_trials) {
       β = β,
       response_name = "obs"),
     error = function(e) NULL)
-  #summary(res1)
 
-  # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
+  # Run R-inla with the two-step model 
   samples = parallel::mclapply(
     X = seq_len(n_standardised_samples),
     mc.cores = num_cores,
@@ -81,9 +80,8 @@ for (i in 1:n_trials) {
         sapply(function(x) x$hyper[2])
     })
 
-
   tail_estimates[[i]] = list(truth = ξ, n_s = n_s)
-  # res1 might some times crash form numerical errors. Sometimes it also says that
+  # res1 might some times crash from numerical errors. Sometimes it also says that
   # ξ is nondegenerate in its summary, but not when we sample from it. Therefore,
   # we might have to sample ξ from the posterior of res1. Since the crashes are not
   # 'consistent', we have to preserve the random seed here to ensure as much
@@ -101,6 +99,7 @@ for (i in 1:n_trials) {
   }
   .Random.seed = seed
 
+  # Sample ξ from the posterior of the two-step model
   if (any(sapply(samples, is.null))) samples = samples[-which(sapply(samples, is.null))]
   tmp = unlist(samples) %>%
     data_stats(q = c(.025, .5, .975))
@@ -109,6 +108,7 @@ for (i in 1:n_trials) {
   message("Done with iteration nr. ", i)
 }
 
+# Glue together all the results and tidy them for plotting
 mydf = lapply(
   seq_along(tail_estimates),
   function(i) {
@@ -130,19 +130,19 @@ mydf = lapply(
   }) %>%
   do.call(rbind, .)
 
+# Create the plot
 plot = mydf %>%
   dplyr::mutate(n_s = factor(n_s)) %>%
   ggplot(aes(x = x)) +
   geom_errorbar(aes(ymin = `0.025quant`, ymax = `0.975quant`, col = n_s)) +
   geom_point(aes(y = truth, col = n_s)) +
-  #scale_shape_manual(values = c(15, 16, 17, 18)) +
   facet_wrap(~tag, nrow = 2) +
   labs(y = "$\\xi$", x = "Simulation nr.", col = "$|\\bm{\\beta}|$") +
   theme_bw() +
-  #theme_linedraw() +
   theme(axis.title.y = element_text(angle = 0, vjust = 0.5),
         text = element_text(size = 20))
+if (interactive()) print(plot)
 
 
 tikz_plot(file.path(here::here(), "inst", "extdata", "simulation-study.pdf"),
-          print(plot), width = 10, height = 7, view = TRUE)
+          plot, width = 10, height = 7, view = TRUE)

@@ -3,14 +3,18 @@ library(dplyr)
 library(inlaBGEV)
 library(INLA)
 
-hour_vec = c(1, 3, 6)
-α = .5
-β = .8
+# In this script we perform k-fold cross-validation on the joint model and on the
+# two-step model. The performance of the foreacsts are evaluated using twCRPS, where
+# the weight function is an indicator function that is one for larger quantiles than
+# the p_0 quantile
+
+hour_vec = c(1, 3, 6) # Which aggregation lengths are we examining?
+α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
 num_cores = 20 # Number of cores used for parallel computations
-n_folds = 5
-p0 = .9
+n_folds = 5 # number of folds for cross-validation
+p0 = .9 # Threshold used in the twCRPS
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
@@ -18,9 +22,13 @@ covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
 covariate_names = list(
   c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction"),
   c("x", "y", "dist_sea", "log_height"), NULL)
+covariate_names = list(
+  c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction", "height"),
+  c("x", "y", "dist_sea"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
+  # Create the empty list that will contain all the result
   stats[[i]] = list(
     in_sample_twostep = list(),
     out_of_sample_twostep = list(),
@@ -75,6 +83,8 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$data$sd_spde = sd_spde
   sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
   s_res = do.call(inla, sd_inla_args)
+
+  # Sample from the posterior of log(s^*) and transform back to s^*
   set.seed(1)
   log_sd_samples = inla.posterior.sample(s_res, n = n_sd_samples, seed = 1)
   log_sd_pars = inla_gaussian_pars(
@@ -87,6 +97,7 @@ for (i in seq_along(hour_vec)) {
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
 
+  # Run R-INLA once for each sample of s^*, and merge the posterior samples
   in_sample_samples = parallel::mclapply(
     X = seq_len(n_sd_samples),
     mc.cores = num_cores,
@@ -109,12 +120,14 @@ for (i in seq_along(hour_vec)) {
     })
   message("Done with in-sample two-step model")
 
+  # Sometimes, R-INLA might have some numerical problems. Remove the bad models
   bad_samples = which(sapply(in_sample_samples, is.null))
   if (any(bad_samples)) {
     in_sample_samples = in_sample_samples[-bad_samples]
     in_sample_sd_samples = in_sample_sd_samples[, -bad_samples]
   }
 
+  # Run the joint model on the data
   in_sample_res2 = tryCatch(inla_bgev(
     data = data,
     covariate_names = covariate_names,
@@ -124,17 +137,21 @@ for (i in seq_along(hour_vec)) {
     β = β), error = function(e) NULL)
   message("Done with in-sample joint model")
 
+  # Sample from the posterior of the joint model
   if (!is.null(in_sample_res2)) {
     in_sample_samples2 = inla.posterior.sample(100 * length(in_sample_samples), in_sample_res2)
   }
 
-
   message("Start with the out-of-sample modelling")
   for (j in seq_len(n_folds)) {
 
+    # Split the data up into in-sample and out-of-sample data for the current folds
     in_sample_sd_df = dplyr::filter(sd_df, id %in% ids[folds != j])
+    in_sample_data = dplyr::filter(data, id %in% ids[folds != j])
+    leave_out_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
+      dplyr::filter(id %in% ids[folds == j])
 
-    # Prepare to use R-INLA for modelling the SD
+    # Prepare to use R-INLA for modelling the SD based on data from the in-sample folds
     sd_stack = inla_stack(in_sample_sd_df, covariate_names[[2]],
                           response_name = "log_sd", spde = sd_spde)
     sd_inla_formula = as.formula(paste("log_sd ~ -1 + intercept +",
@@ -146,8 +163,6 @@ for (i in seq_along(hour_vec)) {
     sd_inla_args$data = INLA::inla.stack.data(sd_stack)
     sd_inla_args$data$sd_spde = sd_spde
     sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
-
-    # Run R-INLA
     s_res = do.call(inla, sd_inla_args)
 
     # Sample from the distribution of the SD at all observation locations
@@ -163,8 +178,6 @@ for (i in seq_along(hour_vec)) {
       #log_sd_pars$μ %>%
       matrix(nrow = nrow(log_sd_pars$μ)) %>%
       exp()
-
-    in_sample_data = dplyr::filter(data, id %in% ids[folds != j])
 
     # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
     samples = parallel::mclapply(
@@ -189,7 +202,7 @@ for (i in seq_along(hour_vec)) {
       })
     message("Done with out-of-sample two-step model for fold ", j)
 
-    # Sometimes, INLA might have some numerical problems. Remove the bad models
+    # Sometimes, R-INLA might have some numerical problems. Remove the bad models
     bad_samples = which(sapply(samples, is.null))
     if (any(bad_samples)) {
       samples = samples[-bad_samples]
@@ -201,10 +214,7 @@ for (i in seq_along(hour_vec)) {
       seq_along(samples),
       function(i) samples[[i]]$const * sd_samples[, i][folds == j])
 
-    leave_out_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
-      dplyr::filter(id %in% ids[folds == j])
-
-    # Compute sampled parameters at all observation locations
+    # Compute sampled parameters at all leave-out locations
     est_pars = list()
     for (k in seq_along(samples)) {
       est_pars[[k]] = inla_bgev_pars(
@@ -224,7 +234,7 @@ for (i in seq_along(hour_vec)) {
       }
     }
 
-    # Compute twCRPS
+    # Compute twCRPS at all leave-out locations
     twcrps = list()
     for (k in seq_along(unique(leave_out_data$id))) {
       id = unique(leave_out_data$id)[k]
@@ -248,6 +258,7 @@ for (i in seq_along(hour_vec)) {
     if (!is.null(res2)) {
       samples2 = inla.posterior.sample(100 * length(samples), res2)
 
+      # Compute sampled parameters at all leave-out locations
       est_pars2 = inla_bgev_pars(
         samples = samples2,
         data = leave_out_data,
@@ -256,6 +267,7 @@ for (i in seq_along(hour_vec)) {
         mesh = mesh,
         coords = st_geometry(leave_out_data))
 
+      # Compute twCRPS at all leave-out locations
       twcrps2 = list()
       for (k in seq_along(unique(leave_out_data$id))) {
         id = unique(data$id)[k]
@@ -268,6 +280,9 @@ for (i in seq_along(hour_vec)) {
     }
 
     message("Compute in-sample twCRPS for fold ", j)
+    # Here we just do all the same things once more, but now for the models that are
+    # trained on all the data
+
     s_est = lapply(
       seq_along(in_sample_samples),
       function(i) in_sample_samples[[i]]$const * in_sample_sd_samples[, i][folds == j])
@@ -324,6 +339,7 @@ for (i in seq_along(hour_vec)) {
     message("Done with fold nr. ", j)
   }
 
+  # Print results for this specific aggregation period
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
@@ -340,13 +356,12 @@ for (i in seq_along(hour_vec)) {
 
 saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"))
 
+# Print the final results
 for (i in seq_along(stats)) {
   for (j in seq_along(stats[[i]])) {
     stats[[i]][[j]] = data_stats(unlist(stats[[i]][[j]]))
   }
 }
-
-# CRPS
 for (i in seq_along(stats)) {
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
