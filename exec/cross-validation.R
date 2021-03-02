@@ -108,7 +108,7 @@ for (i in seq_along(hour_vec)) {
           α = α,
           β = β)},
         error = function(e) NULL)
-      if (is.null(res) || !res$convergence) return(NULL)
+      if (is.null(res)) return(NULL)
       set.seed(1)
       samples = inla.posterior.sample(100, res, seed = 1)
       list(const = res$standardising_const, samples = samples)
@@ -191,7 +191,7 @@ for (i in seq_along(hour_vec)) {
             α = α,
             β = β)},
           error = function(e) NULL)
-        if (is.null(res) || !res$convergence) return(NULL)
+        if (is.null(res)) return(NULL)
         set.seed(1)
         samples = inla.posterior.sample(100, res, seed = 1)
         list(const = res$standardising_const, samples = samples)
