@@ -74,7 +74,6 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
   sd_inla_args$data = INLA::inla.stack.data(sd_stack)
   sd_inla_args$data$sd_spde = sd_spde
-  sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
   s_res = do.call(inla, sd_inla_args)
 
   # Sample from the posterior of log(s^*) and transform back to s^*
@@ -86,9 +85,12 @@ for (i in seq_along(hour_vec)) {
     covariate_names = covariate_names[[2]],
     mesh = mesh,
     coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-  in_sample_sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
+  in_sample_sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
+    log_sd_pars$μ %>%
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
+
+  location_indices = as.numeric(factor(data$id))
 
   # Run R-INLA once for each sample of s^*, and merge the posterior samples
   in_sample_samples = parallel::mclapply(
@@ -99,7 +101,7 @@ for (i in seq_along(hour_vec)) {
       res = tryCatch({
         inla_bgev(
           data = data,
-          s_est = in_sample_sd_samples[, i],
+          s_est = in_sample_sd_samples[location_indices, i],
           covariate_names = list(covariate_names[[1]], NULL, NULL),
           response_name = "value",
           spde = spde,
@@ -155,7 +157,6 @@ for (i in seq_along(hour_vec)) {
     sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
     sd_inla_args$data = INLA::inla.stack.data(sd_stack)
     sd_inla_args$data$sd_spde = sd_spde
-    sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
     s_res = do.call(inla, sd_inla_args)
 
     # Sample from the distribution of the SD at all observation locations
@@ -167,10 +168,12 @@ for (i in seq_along(hour_vec)) {
       covariate_names = covariate_names[[2]],
       mesh = mesh,
       coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
-    sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
-      #log_sd_pars$μ %>%
+    sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
+      log_sd_pars$μ %>%
       matrix(nrow = nrow(log_sd_pars$μ)) %>%
       exp()
+
+    location_indices = as.numeric(factor(in_sample_data$id))
 
     # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
     samples = parallel::mclapply(
@@ -181,7 +184,7 @@ for (i in seq_along(hour_vec)) {
         res = tryCatch({
           inla_bgev(
             data = in_sample_data,
-            s_est = sd_samples[, i][folds != j],
+            s_est = sd_samples[location_indices, i][folds != j],
             covariate_names = list(covariate_names[[1]], NULL, NULL),
             response_name = "value",
             spde = spde,

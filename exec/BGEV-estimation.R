@@ -18,7 +18,7 @@ num_cores = 10 # Number of cores used for parallel computations
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
-                       c("x", "y", "dist_sea", "precipitation"), NULL)
+                       c("x", "y", "dist_sea"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
@@ -61,14 +61,15 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$formula = sd_inla_formula
   sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
   sd_inla_args$data = INLA::inla.stack.data(sd_stack)
+  #sd_inla_args$data = st_drop_geometry(sd_df)
+  #sd_inla_args$data$intercept = 1
   sd_inla_args$data$sd_spde = sd_spde
-  #sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
 
   # Run R-INLA
   sd_res = do.call(inla, sd_inla_args)
 
   # Sample from the distribution of the SD at all observation locations and prediction locations
-  sd_prediction_data = sd_df %>%
+  sd_prediction_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
     st_transform(st_crs(prediction_data)) %>%
     dplyr::select(all_of(names(prediction_data))) %>%
     rbind(prediction_data)
@@ -85,6 +86,8 @@ for (i in seq_along(hour_vec)) {
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
 
+  location_indices = as.numeric(factor(data$id))
+
   # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
   samples = parallel::mclapply(
     X = seq_len(n_sd_samples),
@@ -94,7 +97,7 @@ for (i in seq_along(hour_vec)) {
       res = tryCatch({
         inla_bgev(
           data = data,
-          s_est = sd_samples[, i][1:nrow(sd_df)],
+          s_est = sd_samples[, i][location_indices],
           covariate_names = list(covariate_names[[1]], NULL, NULL),
           response_name = "value",
           spde = spde,
@@ -118,7 +121,7 @@ for (i in seq_along(hour_vec)) {
   # Compute the SD multiplied with the standardising const at all prediction locations
   s_est = lapply(
     seq_along(samples),
-    function(i) samples[[i]]$const * sd_samples[-(1:nrow(sd_df)), i])
+    function(i) samples[[i]]$const * sd_samples[-unique(location_indices), i])
 
   #mystats = list()
   #for (j in seq_along(samples)) {
@@ -138,9 +141,9 @@ for (i in seq_along(hour_vec)) {
   #plots = list()
   #for (j in seq_along(mystats)) {
   #  plots[[j]] = mystats[[j]]$q %>%
-  #    dplyr::mutate(mean = s_est[[j]]) %>%
+  #    #dplyr::mutate(mean = s_est[[j]]) %>%
   #    #dplyr::mutate(mean = matern[-(1:nrow(sd_df)), j]) %>%
-  #    dplyr::mutate(mean = μ[-(1:nrow(sd_df)), j]) %>%
+  #    #dplyr::mutate(mean = μ[-(1:nrow(sd_df)), j]) %>%
   #    cbind(st_geometry(prediction_data)) %>%
   #    st_as_sf() %>%
   #    plot_stats()

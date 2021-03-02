@@ -94,6 +94,7 @@ inla_bgev = function(data,
                      ...) {
   # Standardise the observations by dividing on the estimated spread, and then
   # dividing by a constant so the difference between 5% quantile and 95% quantile is 1
+  if (nrow(data) != length(s_est)) stop("Lengths of 'data' and 's_est' differ")
   data[[response_name]] = data[[response_name]] / s_est
   standardising_const = diff(quantile(data[[response_name]], c(.05, .95)))
   data[[response_name]] = data[[response_name]] / standardising_const
