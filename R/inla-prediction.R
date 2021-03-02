@@ -70,15 +70,19 @@ inla_gaussian_pars = function(samples,
     μ = coeffs$μ
   } else {
     μ = X[, c("intercept", covariate_names)] %*% coeffs$μ
+    #μ_intercept = matrix(X[, "intercept"], nrow = nrow(X)) %*% coeffs$μ[1, ]
+    #μ_no_intercept = X[, covariate_names] %*% coeffs$μ[-1, ]
   }
   τ = matrix(rep(coeffs$τ, each = nrow(X)), ncol = length(samples))
 
   # If there is a spatial Gaussian field in the model, sample from it
   # and add it to the location parameter
   is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
+  #if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
   if (is_matern_field) μ = μ + inla_sample_matern_field(samples, mesh, coords)
 
   list(μ = μ, τ = τ)
+  #list(intercept = μ_intercept, matern = matern, μ_no_intercept = μ_no_intercept)
 }
 
 #' @export
@@ -116,16 +120,17 @@ inla_bgev_pars = function(samples,
   # and add it to the location parameter
   is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
   if (is_matern_field) q = q + inla_sample_matern_field(samples, mesh, coords)
-  if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
+  #if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
 
   # If the response had been standardised, compute un-standardised parameters
   if (!is.null(s_est)) {
     s = s * matrix(rep(s_est, length(samples)), ncol = length(samples))
     q = q * matrix(rep(s_est, length(samples)), ncol = length(samples))
-    matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    #matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
   }
 
-  list(q = q, s = s, ξ = ξ, matern = matern)
+  list(q = q, s = s, ξ = ξ)
+  #list(q = q, s = s, ξ = ξ, matern = matern)
 }
 
 inla_bgev_coeffs = function(samples, covariate_names) {

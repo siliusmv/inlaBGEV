@@ -18,10 +18,7 @@ num_cores = 10 # Number of cores used for parallel computations
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
-                       c("x", "y", "dist_sea"), NULL)
-covariate_names = list(
-  c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction"),
-  c("x", "y", "dist_sea", "log_height"), NULL)
+                       c("x", "y", "dist_sea", "precipitation"), NULL)
 
 stats = list()
 for (i in seq_along(hour_vec)) {
@@ -52,7 +49,7 @@ for (i in seq_along(hour_vec)) {
   # Create a prior for the spatial Gaussian field used for modelling the SD
   sd_spde = inla.spde2.pcmatern(
     mesh = mesh,
-    prior.sigma = c(1, .05),
+    prior.sigma = c(.5, .05),
     prior.range = c(75, .05))
 
   # Prepare to use R-INLA for modelling the SD
@@ -65,7 +62,7 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
   sd_inla_args$data = INLA::inla.stack.data(sd_stack)
   sd_inla_args$data$sd_spde = sd_spde
-  sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
+  #sd_inla_args$control.family = list(hyper = list(prec = list(init = 1e10, fixed = TRUE)))
 
   # Run R-INLA
   sd_res = do.call(inla, sd_inla_args)
@@ -83,8 +80,8 @@ for (i in seq_along(hour_vec)) {
     covariate_names = covariate_names[[2]],
     mesh = mesh,
     coords = st_geometry(sd_prediction_data))
-  sd_samples = rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
-    #log_sd_pars$μ %>%
+  sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
+    log_sd_pars$μ %>%
     matrix(nrow = nrow(log_sd_pars$μ)) %>%
     exp()
 
@@ -169,6 +166,8 @@ for (i in seq_along(hour_vec)) {
 saveRDS(stats, file.path(here::here(), "inst", "extdata", "return-level-stats.rds"))
 
 # Plot the results ===================================================
+
+# Return levels =======================
 my_breaks = c(8, 12, 16, 20, 24, 28)
 p1 = stats[[1]]$fun %>%
   cbind(st_geometry(prediction_data)) %>%
@@ -196,3 +195,63 @@ myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
 
 tikz_plot(file.path(here::here(), "inst", "extdata", "return-level-maps.pdf"),
           myplot, width = 7, height = 10)
+
+# BGEV parameters ===========================
+pq = stats[[1]]$q %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(use_tex = TRUE, size = .3)
+pq[[1]] = pq[[1]] + labs(title = "1 hour precipitation, $q_\\alpha$")
+
+ps = stats[[1]]$s %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(use_tex = TRUE, size = .3)
+ps[[1]] = ps[[1]] + labs(title = "1 hour precipitation, $s_\\beta$")
+
+p1 = pq[[1]] + ps[[1]]
+
+pq = stats[[2]]$q %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(use_tex = TRUE, size = .3)
+pq[[1]] = pq[[1]] + labs(title = "3 hour precipitation, $q_\\alpha$")
+
+ps = stats[[2]]$s %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(use_tex = TRUE, size = .3)
+ps[[1]] = ps[[1]] + labs(title = "3 hour precipitation, $s_\\beta$")
+
+p2 = pq[[1]] + ps[[1]]
+
+pq = stats[[3]]$q %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(use_tex = TRUE, size = .3)
+pq[[1]] = pq[[1]] + labs(title = "6 hour precipitation, $q_\\alpha$")
+
+ps = stats[[3]]$s %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(use_tex = TRUE, size = .3)
+ps[[1]] = ps[[1]] + labs(title = "6 hour precipitation, $s_\\beta$")
+
+p3 = pq[[1]] + ps[[1]]
+
+text_size = 8
+myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
+  theme(text = element_text(size = text_size))
+
+tikz_plot(file.path(here::here(), "inst", "extdata", "BGEV-parameter-maps.pdf"),
+          myplot, width = 7, height = 10)
+
+
+# Tail parameter summary =========================
+
+message("1 hour ξ:")
+print(stats[[1]]$ξ)
+message("3 hour ξ:")
+print(stats[[2]]$ξ)
+message("6 hour ξ:")
+print(stats[[3]]$ξ)

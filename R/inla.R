@@ -175,7 +175,7 @@ inla_mesh = function(coords,
                      cutoff = 5, # Minimum edge length (when multiple points are close)
                      max.edge = c(25, 50)) {# Max edge length for inner/outer area
   coords = sf::st_transform(coords, get_proj_xy())
-  boundary = inla.nonconvex.hull(points = sf::st_coordinates(coords), convex = convex)
+  boundary = INLA::inla.nonconvex.hull(points = sf::st_coordinates(coords), convex = convex)
   mesh_crs = sp::CRS(as.character(get_proj_xy())[1])
   INLA::inla.mesh.2d(
     sf::st_coordinates(coords),

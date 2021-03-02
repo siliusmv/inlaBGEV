@@ -19,13 +19,6 @@ p0 = .9 # Threshold used in the twCRPS
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
                        c("x", "y", "dist_sea"), NULL)
-covariate_names = list(
-  c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction"),
-  c("x", "y", "dist_sea", "log_height"), NULL)
-covariate_names = list(
-  c("x", "y", "summer_precipitation", "dist_sea", "summer_precipitation_fraction", "height"),
-  c("x", "y", "dist_sea"), NULL)
-
 stats = list()
 for (i in seq_along(hour_vec)) {
   # Create the empty list that will contain all the result
