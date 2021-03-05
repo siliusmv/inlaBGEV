@@ -8,7 +8,7 @@ library(INLA)
 # the weight function is an indicator function that is one for larger quantiles than
 # the p_0 quantile
 
-hour_vec = c(1, 3, 6) # Which aggregation lengths are we examining?
+hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 n_sd_samples = 20 # Number of samples drawn from the distribution of the SD

@@ -9,7 +9,7 @@ library(patchwork)
 # In this script we estimate return level maps for 1, 3, and 6 hour precipitation,
 # using the two-step model
 
-hour_vec = c(1, 3, 6) # Which aggregation lengths are we examining?
+hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
@@ -171,21 +171,21 @@ saveRDS(stats, file.path(here::here(), "inst", "extdata", "return-level-stats.rd
 # Plot the results ===================================================
 
 # Return levels =======================
-my_breaks = c(8, 12, 16, 20, 24, 28)
+my_breaks = c(6, 10, 14, 18, 22, 26)
 p1 = stats[[1]]$fun %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
 p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation\n20 year return level")
 
-my_breaks = c(18, 24, 30, 36, 42, 48)
+my_breaks = seq(10, by = 6, length = 6)
 p2 = stats[[2]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
 p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation\n20 year return level")
 
-my_breaks = c(20, 30, 40, 50, 60, 70)
+my_breaks = seq(16, by = 10, length = 6)
 p3 = stats[[3]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
@@ -197,48 +197,49 @@ myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
   theme(text = element_text(size = text_size))
 
 tikz_plot(file.path(here::here(), "inst", "extdata", "return-level-maps.pdf"),
-          myplot, width = 7, height = 10)
+          myplot, width = 7, height = 10, view = TRUE)
 
 # BGEV parameters ===========================
 pq = stats[[1]]$q %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(use_tex = TRUE, size = .3)
-pq[[1]] = pq[[1]] + labs(title = "1 hour precipitation, $q_\\alpha$")
+  plot_stats(use_tex = TRUE, size = .3, breaks = c(8, 10, 12, 14, 16))
+pq[[1]] = pq[[1]] + labs(title = "1 hour precipitation", fill = "Posterior mean $q_\\alpha$")
 
 ps = stats[[1]]$s %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(use_tex = TRUE, size = .3)
-ps[[1]] = ps[[1]] + labs(title = "1 hour precipitation, $s_\\beta$")
+  plot_stats(use_tex = TRUE, size = .3, breaks = c(1, 1.5, 2, 2.5, 3))
+ps[[1]] = ps[[1]] + labs(fill = "Posterior mean $s_\\beta$")
+#ps[[1]] = ps[[1]] + labs(title = "1 hour precipitation, $s_\\beta$")
 
 p1 = pq[[1]] + ps[[1]]
 
 pq = stats[[2]]$q %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(use_tex = TRUE, size = .3)
-pq[[1]] = pq[[1]] + labs(title = "3 hour precipitation, $q_\\alpha$")
+  plot_stats(use_tex = TRUE, size = .3, breaks = c(15, 20, 25, 30, 35))
+pq[[1]] = pq[[1]] + labs(title = "3 hour precipitation", fill = "Posterior mean $q_\\alpha$")
 
 ps = stats[[2]]$s %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(use_tex = TRUE, size = .3)
-ps[[1]] = ps[[1]] + labs(title = "3 hour precipitation, $s_\\beta$")
+  plot_stats(use_tex = TRUE, size = .3, breaks = c(2, 2.5, 3, 3.5, 4))
+ps[[1]] = ps[[1]] + labs(fill = "Posterior mean $s_\\beta$")
 
 p2 = pq[[1]] + ps[[1]]
 
 pq = stats[[3]]$q %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(use_tex = TRUE, size = .3)
-pq[[1]] = pq[[1]] + labs(title = "6 hour precipitation, $q_\\alpha$")
+  plot_stats(use_tex = TRUE, size = .3, breaks = c(24, 30, 36, 42, 48))
+pq[[1]] = pq[[1]] + labs(title = "6 hour precipitation", fill = "Posterior mean $q_\\alpha$")
 
 ps = stats[[3]]$s %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(use_tex = TRUE, size = .3)
-ps[[1]] = ps[[1]] + labs(title = "6 hour precipitation, $s_\\beta$")
+  plot_stats(use_tex = TRUE, size = .3, breaks = c(3, 3.5, 4, 4.5, 5))
+ps[[1]] = ps[[1]] + labs(fill = "Posterior mean $s_\\beta$")
 
 p3 = pq[[1]] + ps[[1]]
 
@@ -247,14 +248,12 @@ myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
   theme(text = element_text(size = text_size))
 
 tikz_plot(file.path(here::here(), "inst", "extdata", "BGEV-parameter-maps.pdf"),
-          myplot, width = 7, height = 10)
+          myplot, width = 7, height = 10, view = TRUE)
 
 
 # Tail parameter summary =========================
 
-message("1 hour ξ:")
-print(stats[[1]]$ξ)
-message("3 hour ξ:")
-print(stats[[2]]$ξ)
-message("6 hour ξ:")
-print(stats[[3]]$ξ)
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour ξ:"))
+  print(stats[[i]]$ξ)
+}
