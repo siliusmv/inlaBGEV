@@ -19,6 +19,7 @@ p0 = .9 # Threshold used in the twCRPS
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
                        c("x", "y", "dist_sea"), NULL)
+
 stats = list()
 for (i in seq_along(hour_vec)) {
   # Create the empty list that will contain all the result
@@ -184,7 +185,7 @@ for (i in seq_along(hour_vec)) {
         res = tryCatch({
           inla_bgev(
             data = in_sample_data,
-            s_est = sd_samples[location_indices, i][folds != j],
+            s_est = sd_samples[which(folds != j), i][location_indices],
             covariate_names = list(covariate_names[[1]], NULL, NULL),
             response_name = "value",
             spde = spde,
@@ -208,7 +209,7 @@ for (i in seq_along(hour_vec)) {
     # Compute the SD multiplied with the standardising const at all leave_out observation locations
     s_est = lapply(
       seq_along(samples),
-      function(i) samples[[i]]$const * sd_samples[, i][folds == j])
+      function(i) samples[[i]]$const * sd_samples[which(folds == j), i])
 
     # Compute sampled parameters at all leave-out locations
     est_pars = list()
@@ -281,7 +282,7 @@ for (i in seq_along(hour_vec)) {
 
     s_est = lapply(
       seq_along(in_sample_samples),
-      function(i) in_sample_samples[[i]]$const * in_sample_sd_samples[, i][folds == j])
+      function(i) in_sample_samples[[i]]$const * in_sample_sd_samples[which(folds == j), i])
 
     est_pars = list()
     for (k in seq_along(in_sample_samples)) {
