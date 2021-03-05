@@ -176,21 +176,36 @@ p1 = stats[[1]]$fun %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
-p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation\n20 year return level")
+p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation")
 
 my_breaks = seq(10, by = 6, length = 6)
 p2 = stats[[2]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
-p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation\n20 year return level")
+p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation")
 
 my_breaks = seq(16, by = 10, length = 6)
 p3 = stats[[3]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
-p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation\n20 year return level")
+p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation")
+
+my_breaks = seq(20, by = 15, length = 6)
+p4 = stats[[4]]$f %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+p4[[1]] = p4[[1]] + labs(title = "12 hour precipitatio")
+
+my_breaks = seq(30, by = 20, length = 6)
+p5 = stats[[5]]$f %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+p5[[1]] = p5[[1]] + labs(title = "24 hour precipitatio")
+
 
 text_size = 8
 myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
