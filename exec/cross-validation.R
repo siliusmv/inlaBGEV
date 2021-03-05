@@ -11,8 +11,8 @@ library(INLA)
 hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
-n_sd_samples = 20 # Number of samples drawn from the distribution of the SD
-num_cores = 20 # Number of cores used for parallel computations
+n_sd_samples = 10 # Number of samples drawn from the distribution of the SD
+num_cores = 10 # Number of cores used for parallel computations
 n_folds = 5 # number of folds for cross-validation
 p0 = .9 # Threshold used in the twCRPS
 
