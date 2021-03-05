@@ -23,16 +23,17 @@ plot_stats = function(x, grid = TRUE,
   gg1 + gg2
 }
 
-plot_grid = function(data, response, breaks = NULL, use_tex = FALSE, ...) {
+#' @export
+plot_grid = function(data, response_name, breaks = NULL, use_tex = FALSE, ...) {
   coords = as.data.frame(sf::st_coordinates(data))
   data$x = coords$X
   data$y = coords$Y
   if (!is.null(breaks)) {
-    data[[response]] = get_binned_data(data[[response]], breaks, use_tex = use_tex)
+    data[[response_name]] = get_binned_data(data[[response_name]], breaks, use_tex = use_tex)
   }
   gg = ggplot(data) +
     theme_light() +
-    geom_raster(aes_string(x = "x", y = "y", fill = response)) +
+    geom_raster(aes_string(x = "x", y = "y", fill = response_name)) +
     add_norway_map(sf::st_crs(data), sf::st_bbox(data), ...) +
     labs(x = "", y = "")
   gg = add_scico_fill(gg, binned = !is.null(breaks))
@@ -40,18 +41,24 @@ plot_grid = function(data, response, breaks = NULL, use_tex = FALSE, ...) {
   gg
 }
 
-plot_on_map = function(data, response, breaks = NULL, use_tex = FALSE, ...) {
-  coords = as.data.frame(sf::st_coordinates(data))
-  data$x = coords$X
-  data$y = coords$Y
+#' @export
+plot_on_map = function(data, response_name = NULL, breaks = NULL, use_tex = FALSE, ...) {
+  #coords = as.data.frame(sf::st_coordinates(data))
+  #data$x = coords$X
+  #data$y = coords$Y
   if (!is.null(breaks)) {
-    data[[response]] = get_binned_data(data[[response]], breaks, use_tex = use_tex)
+    data[[response_name]] = get_binned_data(data[[response_name]], breaks, use_tex = use_tex)
   }
-  gg = ggplot(data) +
-    theme_light() +
-    geom_point(aes_string(x = "x", y = "y", col = response)) +
+  if (is.null(response_name)) {
+    gg = ggplot(data) + geom_sf()
+  } else {
+    gg = ggplot(data) + geom_sf(aes_string(col = response_name))
+  }
+  gg = gg +
+    #geom_point(aes_string(x = "x", y = "y", col = response_name)) +
     add_norway_map(st_crs(data), st_bbox(data), ...) +
     scale_color_viridis_c() +
+    theme_light() +
     labs(x = "", y = "")
   if (use_tex) gg = latex_friendly_map_plot(gg)
   gg
@@ -95,4 +102,15 @@ get_binned_data = function(x, breaks = NULL, digits = 1, use_tex = FALSE) {
   }
   x = cut(x, breaks, labels = labels)
   x
+}
+
+add_norway_map = function(crs = NULL, bbox = NULL, ...) {
+  map = rnaturalearth::ne_countries(scale = 50, country = "Norway", returnclass = "sf")
+  c(layer_sf(
+    geom = GeomSf, data = map, mapping = aes(),
+    stat = "sf", position = "identity", show.legend = NA,
+    inherit.aes = TRUE,
+    params = list(na.rm = FALSE, fill = NA, ...)),
+    coord_sf(default = TRUE, crs = crs,
+             xlim = bbox[c(1, 3)], ylim = bbox[c(2, 4)]))
 }

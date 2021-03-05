@@ -1,14 +1,3 @@
-add_norway_map = function(crs = NULL, bbox = NULL, ...) {
-  map = rnaturalearth::ne_countries(scale = 50, country = "Norway", returnclass = "sf")
-  c(layer_sf(
-    geom = GeomSf, data = map, mapping = aes(),
-    stat = "sf", position = "identity", show.legend = NA,
-    inherit.aes = TRUE,
-    params = list(na.rm = FALSE, fill = NA, ...)),
-    coord_sf(default = TRUE, crs = crs,
-             xlim = bbox[c(1, 3)], ylim = bbox[c(2, 4)]))
-}
-
 fix_lengths = function(...) {
   call = match.call()
   varnames = sapply(call[-1], as.character)
