@@ -9,11 +9,12 @@ library(parallel)
 # We simulate data at different locations and with different explanatory variables many
 # times, and then we use both models for estimation and see which one works the best
 
+n = 1500 # Number of samples used for estimation
 n_loc = 250 # Number of "locations" that the data are sampled from
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 n_trials = 30 # Number of simulations to run
-n_standardised_samples = 12 # Number of samples from the distribution of s^* that are used
-num_cores = 12 # Number of cores used for parallel computations
+n_standardised_samples = 10 # Number of samples from the distribution of s^* that are used
+num_cores = 10 # Number of cores used for parallel computations
 
 tail_estimates = list()
 set.seed(123, kind = "L'Ecuyer-CMRG") # Set a seed that works for paralellisation
@@ -75,7 +76,7 @@ for (i in 1:n_trials) {
           α = α,
           β = β)},
         error = function(e) NULL)
-      if (is.null(res) || !res$convergence) return(NULL)
+      if (is.null(res)) return(NULL)
       inla.posterior.sample(100, res, seed = 1) %>%
         sapply(function(x) x$hyper[2])
     })
