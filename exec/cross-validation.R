@@ -85,7 +85,6 @@ for (i in seq_along(hour_vec)) {
     sd_model = sd_res,
     covariate_names = covariate_names,
     response_name = "value",
-    verbose = TRUE,
     diagonal = .05,
     n_sd_samples = n_sd_samples,
     spde = spde,

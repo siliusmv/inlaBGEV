@@ -14,7 +14,7 @@ twostep_modelling = function(data,
 
   # Sample from the distribution of the SD at all observation locations and prediction locations
   if (is.null(prediction_data)) {
-    all_data = data
+    all_data = dplyr::distinct(data, id, .keep_all = TRUE)
     prediction_indices = seq_len(nrow(dplyr::distinct(data, id)))
   } else {
     all_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
