@@ -89,6 +89,7 @@ inla_bgev = function(data,
                      response_name,
                      s_est = rep(1, nrow(data)),
                      spde = NULL,
+                     diagonal = "NULL",
                      α = .5,
                      β = .8,
                      ...) {
@@ -139,7 +140,7 @@ inla_bgev = function(data,
   } else {
     inla_formula = as.formula(paste("mdata ~ -1 + ",
                                     paste(c("intercept", covariate_names[[1]]), collapse = " + "),
-                                    "+ f(matern_field, model = spde)"))
+                                    "+ f(matern_field, model = spde, diagonal = ", diagonal, ")"))
   }
 
   # Create a list of all the arguments needed for running R-INLA

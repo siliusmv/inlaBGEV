@@ -52,7 +52,7 @@ for (i in seq_along(hour_vec)) {
     prior.sigma = c(.5, .05),
     prior.range = c(75, .05))
 
-  # Prepare to use R-INLA for modelling the SD
+  # Estimate s^*
   sd_stack = inla_stack(sd_df, covariate_names[[2]], response_name = "log_sd", spde = sd_spde)
   sd_inla_formula = as.formula(paste("log_sd ~ -1 + intercept +",
                                      paste(covariate_names[[2]], collapse = " + "),
@@ -61,102 +61,31 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$formula = sd_inla_formula
   sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
   sd_inla_args$data = INLA::inla.stack.data(sd_stack)
-  #sd_inla_args$data = st_drop_geometry(sd_df)
-  #sd_inla_args$data$intercept = 1
   sd_inla_args$data$sd_spde = sd_spde
-
-  # Run R-INLA
   sd_res = do.call(inla, sd_inla_args)
 
-  # Sample from the distribution of the SD at all observation locations and prediction locations
-  sd_prediction_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
-    st_transform(st_crs(prediction_data)) %>%
-    dplyr::select(all_of(names(prediction_data))) %>%
-    rbind(prediction_data)
-  set.seed(1)
-  log_sd_samples = inla.posterior.sample(sd_res, n = n_sd_samples, seed = 1)
-  log_sd_pars = inla_gaussian_pars(
-    samples = log_sd_samples,
-    data = sd_prediction_data,
-    covariate_names = covariate_names[[2]],
-    mesh = mesh,
-    coords = st_geometry(sd_prediction_data))
-  sd_samples = #rnorm(length(log_sd_pars$μ), log_sd_pars$μ, 1 / sqrt(1e10)) %>%
-    log_sd_pars$μ %>%
-    matrix(nrow = nrow(log_sd_pars$μ)) %>%
-    exp()
-
-  location_indices = as.numeric(factor(data$id))
-
-  # Run R-inla to estimate the BGEV-parameters once for each of the SD samples
-  samples = parallel::mclapply(
-    X = seq_len(n_sd_samples),
-    mc.cores = num_cores,
-    mc.preschedule = FALSE,
-    FUN = function(i) {
-      res = tryCatch({
-        inla_bgev(
-          data = data,
-          s_est = sd_samples[, i][location_indices],
-          covariate_names = list(covariate_names[[1]], NULL, NULL),
-          response_name = "value",
-          spde = spde,
-          α = α,
-          β = β)},
-        error = function(e) NULL)
-      message("Done with iter nr. ", i)
-      if (is.null(res)) return(NULL)
-      set.seed(1)
-      samples = inla.posterior.sample(100, res, seed = 1)
-      list(const = res$standardising_const, samples = samples)
-    })
-
-  # Sometimes, R-INLA might have some numerical problems. Remove the bad models
-  bad_samples = which(sapply(samples, is.null))
-  if (any(bad_samples)) {
-    samples = samples[-bad_samples]
-    sd_samples = sd_samples[, -bad_samples]
-  }
-
-  # Compute the SD multiplied with the standardising const at all prediction locations
-  s_est = lapply(
-    seq_along(samples),
-    function(i) samples[[i]]$const * sd_samples[-unique(location_indices), i])
-
-  #mystats = list()
-  #for (j in seq_along(samples)) {
-  #  mystats[[j]] = inla_bgev_stats(
-  #    sample_list = list(samples[[j]]$samples),
-  #    data = prediction_data,
-  #    covariate_names = list(covariate_names[[1]], NULL, NULL),
-  #    s_list = s_est[j],
-  #    mesh = mesh,
-  #    n_batches = 50,
-  #    fun = function(pars) {
-  #      locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
-  #      return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
-  #    })
-  #}
-
-  #plots = list()
-  #for (j in seq_along(mystats)) {
-  #  plots[[j]] = mystats[[j]]$q %>%
-  #    #dplyr::mutate(mean = s_est[[j]]) %>%
-  #    #dplyr::mutate(mean = matern[-(1:nrow(sd_df)), j]) %>%
-  #    #dplyr::mutate(mean = μ[-(1:nrow(sd_df)), j]) %>%
-  #    cbind(st_geometry(prediction_data)) %>%
-  #    st_as_sf() %>%
-  #    plot_stats()
-  #}
+  # Run the two-step model
+  samples = twostep_modelling(
+    data = data,
+    sd_model = sd_res,
+    covariate_names = covariate_names,
+    response_name = "value",
+    n_sd_samples = n_sd_samples,
+    prediction_data = prediction_data,
+    spde = spde,
+    num_cores = num_cores,
+    α = α,
+    β = β)
 
   # Compute parameter stats and return level stats at all locations
-  stats[[i]] = inla_bgev_stats(
+  stats[[i]] = inla_stats(
     sample_list = lapply(samples, `[[`, "samples"),
     data = prediction_data,
     covariate_names = list(covariate_names[[1]], NULL, NULL),
-    s_list = s_est,
+    s_list = lapply(samples, `[[`, "s_est"),
     mesh = mesh,
-    n_batches = 50,
+    family = "bgev",
+    n_batches = 20,
     fun = function(pars) {
       locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
       return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)

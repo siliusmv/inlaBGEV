@@ -1,13 +1,14 @@
 #' @export
-inla_bgev_stats = function(sample_list,
-                           data,
-                           covariate_names,
-                           s_list = NULL,
-                           mesh = NULL,
-                           n_batches = 1L,
-                           fun = NULL,
-                           quantiles = c(.025, .25, .5, .75, .975),
-                           ...) {
+inla_stats = function(sample_list,
+                      data,
+                      covariate_names,
+                      s_list = NULL,
+                      mesh = NULL,
+                      n_batches = 1L,
+                      fun = NULL,
+                      quantiles = c(.025, .25, .5, .75, .975),
+                      family = c("bgev", "gaussian"),
+                      ...) {
   # Divide the data into batches. This is necessary if you use a laptop with little RAM
   batch_index = floor(seq(0, nrow(data), length.out = n_batches + 1))
   stats = vector("list", n_batches)
@@ -17,6 +18,7 @@ inla_bgev_stats = function(sample_list,
     pars = list()
     for (i in seq_along(sample_list)) {
       # Compute posterior samples for the parameters at all locations
+      if (family[1] == "bgev") {
       pars[[i]] = inla_bgev_pars(
         samples = sample_list[[i]],
         data = sf::st_drop_geometry(data)[rows, ],
@@ -24,6 +26,16 @@ inla_bgev_stats = function(sample_list,
         s_est = s_list[[i]][rows],
         mesh = mesh,
         coords = sf::st_geometry(data)[rows, ])
+      } else if (family[1] == "gaussian") {
+        pars[[i]] = inla_gaussian_pars(
+          samples = sample_list[[i]],
+          data = sf::st_drop_geometry(data)[rows, ],
+          covariate_names = covariate_names,
+          mesh = mesh,
+          coords = sf::st_geometry(data)[rows, ])
+      } else {
+        stop("unknown family type")
+      }
       # Compute some function of the sampled parameters, e.g. return level
       if (!is.null(fun)) pars[[i]]$fun = matrix(fun(pars[[i]], ...), nrow = length(rows))
     }
