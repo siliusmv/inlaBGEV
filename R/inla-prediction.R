@@ -86,42 +86,6 @@ inla_gaussian_pars = function(samples,
 }
 
 #' @export
-inla_gaussian_pars2 = function(samples,
-                               data,
-                               covariate_names,
-                               mesh = NULL,
-                               coords = NULL) {
-
-  # Extract design matrix
-  X = dplyr::select(data, tidyselect::all_of(unique(unlist(covariate_names)))) %>%
-    dplyr::distinct(.keep_all = TRUE)
-  if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
-  X = cbind(intercept = 1, as.matrix(X))
-
-  # Extract all coefficients from the samples
-  coeffs = inla_gaussian_coeffs(samples, covariate_names)
-
-  # Compute parameters at all locations and for all samples
-  if (is.null(dim(coeffs$μ))) {
-    μ = coeffs$μ
-  } else {
-    μ = X[, c("intercept", covariate_names)] %*% coeffs$μ
-    μ_intercept = matrix(X[, "intercept"], nrow = nrow(X)) %*% coeffs$μ[1, ]
-    #μ_no_intercept = X[, covariate_names] %*% coeffs$μ[-1, ]
-  }
-  #τ = matrix(rep(coeffs$τ, each = nrow(X)), ncol = length(samples))
-
-  # If there is a spatial Gaussian field in the model, sample from it
-  # and add it to the location parameter
-  is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
-  if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
-  if (is_matern_field) μ = μ + matern
-
-  list(intercept = μ_intercept, matern = matern, μ = μ)
-}
-
-
-#' @export
 inla_bgev_pars = function(samples,
                           data,
                           covariate_names,
