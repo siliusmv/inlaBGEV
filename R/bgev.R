@@ -63,12 +63,22 @@ twcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
 }
 
 #' @export
-stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2) {
-  f = function(x) twcrps_bgev(x, μ, σ, ξ, p) * dbgev(x, μ, σ, ξ, p_a, p_b)
-  g_lower = function(u) f(log(u)) / u
-  g_upper = function(u) f(-log(u)) / u
-  expected_score = integrate(function(u) g_lower(u) + g_upper(u), 0, 1)$value
-  twcrps_bgev(y, μ, σ, ξ, p, p_b) / abs(expected_score) + log(abs(expected_score))
+stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2, num_cores = 6) {
+  f = function(x, μ, σ, ξ, p, p_a, p_b) twcrps_bgev(x, μ, σ, ξ, p) * dbgev(x, μ, σ, ξ, p_a, p_b)
+  g_lower = function(u, ...) f(log(u), ...) / u
+  g_upper = function(u, ...) f(-log(u), ...) / u
+  one_stwcrps = function(y, μ, σ, ξ, p, p_a, p_b) {
+    expected_score = integrate(
+      function(u, ...) g_lower(u, ...) + g_upper(u, ...), lower = 0, upper = 1,
+      μ = μ, σ = σ, ξ = ξ, p = p, p_a = p_a, p_b = p_b)$value
+    twcrps_bgev(y, μ, σ, ξ, p, p_b) / abs(expected_score) + log(abs(expected_score))
+  }
+  fix_lengths(μ, σ, ξ)
+  parallel::mcmapply(
+    FUN = function(y, ...) sapply(y, one_stwcrps, ...),
+    mc.cores = num_cores,
+    μ = μ, σ = σ, ξ = ξ,
+    MoreArgs = list(y = y, p = p, p_a = p_a, p_b = p_b))
 }
 
 

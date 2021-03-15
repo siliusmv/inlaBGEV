@@ -54,16 +54,22 @@ twcrps_gev = function(y, μ, σ, ξ, p) {
 }
 
 #' @export
-stwcrps_gev = function(y, μ, σ, ξ, p) {
-  f = function(x) twcrps_gev(x, μ, σ, ξ, p) * dgev(x, μ, σ, ξ)
-  g = function(u) f(-log(u)) / u
-  lower = qgev(0, μ, σ, ξ)
-  if (lower < 0) {
-    expected_score = integrate(f, lower, 0)$value + integrate(g, 0, 1)$value
-  } else {
-    expected_score = integrate(g, 0, exp(-lower))$value
+stwcrps_gev = function(y, μ, σ, ξ, p, num_cores = 6) {
+  f = function(x, μ, σ, ξ, p) twcrps_gev(x, μ, σ, ξ, p) * dgev(x, μ, σ, ξ)
+  g_lower = function(u, ...) f(log(u), ...) / u
+  g_upper = function(u, ...) f(-log(u), ...) / u
+  one_stwcrps = function(y, μ, σ, ξ, p, p_a, p_b) {
+    expected_score = integrate(
+      function(u, ...) g_lower(u, ...) + g_upper(u, ...), lower = 0, upper = 1,
+      μ = μ, σ = σ, ξ = ξ, p = p)$value
+    twcrps_gev(y, μ, σ, ξ, p) / abs(expected_score) + log(abs(expected_score))
   }
-  twcrps_gev(y, μ, σ, ξ, p) / abs(expected_score) + log(abs(expected_score))
+  fix_lengths(μ, σ, ξ)
+  parallel::mcmapply(
+    FUN = function(y, ...) sapply(y, one_stwcrps, ...),
+    mc.cores = num_cores,
+    μ = μ, σ = σ, ξ = ξ,
+    MoreArgs = list(y = y, p = p))
 }
 
 twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
