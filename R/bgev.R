@@ -63,6 +63,16 @@ twcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
 }
 
 #' @export
+stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2) {
+  f = function(x) twcrps_bgev(x, μ, σ, ξ, p) * dbgev(x, μ, σ, ξ, p_a, p_b)
+  g_lower = function(u) f(log(u)) / u
+  g_upper = function(u) f(-log(u)) / u
+  expected_score = integrate(function(u) g_lower(u) + g_upper(u), 0, 1)$value
+  twcrps_bgev(y, μ, σ, ξ, p, p_b) / abs(expected_score) + log(abs(expected_score))
+}
+
+
+#' @export
 return_level_bgev = function(period, μ, σ, ξ, p_a = .1, p_b = .2, s = 5) {
   if (any(period <= 1)) warning("invalid period")
   p = ifelse(period > 1, 1 - 1 / period, NA)

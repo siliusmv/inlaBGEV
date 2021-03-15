@@ -4,7 +4,7 @@ library(inlaBGEV)
 library(INLA)
 
 # In this script we perform k-fold cross-validation on the joint model and on the
-# two-step model. The performance of the foreacsts are evaluated using twCRPS, where
+# two-step model. The performance of the foreacsts are evaluated using stwCRPS, where
 # the weight function is an indicator function that is one for larger quantiles than
 # the p_0 quantile
 
@@ -14,7 +14,7 @@ min_sd_years = 4L # Minimum number of years before we use the computed SD values
 n_sd_samples = 10 # Number of samples drawn from the distribution of the SD
 num_cores = 10 # Number of cores used for parallel computations
 n_folds = 5 # number of folds for cross-validation
-p0 = .9 # Threshold used in the twCRPS
+p0 = .9 # Threshold used in the stwCRPS
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
@@ -107,12 +107,12 @@ for (i in seq_along(hour_vec)) {
   params = purrr::transpose(params)
   for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
 
-  # Compute twCRPS
+  # Compute stwCRPS
   for (k in seq_along(unique(data$id))) {
     id = unique(data$id)[k]
     obs = dplyr::filter(data, id == !!id)$value
     locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
-    stats[[i]]$in_sample_twostep[[k]] = twcrps_gev(
+    stats[[i]]$in_sample_twostep[[k]] = stwcrps_bgev(
       obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
 
@@ -140,12 +140,12 @@ for (i in seq_along(hour_vec)) {
       mesh = mesh,
       coords = st_geometry(dplyr::distinct(data)))
 
-    # Compute twCRPS
+    # Compute stwCRPS
     for (k in seq_along(unique(data$id))) {
       id = unique(data$id)[k]
       obs = dplyr::filter(data, id == !!id)$value
       locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
-      stats[[i]]$in_sample_joint[[k]] = twcrps_gev(
+      stats[[i]]$in_sample_joint[[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
   }
@@ -202,13 +202,13 @@ for (i in seq_along(hour_vec)) {
     params = purrr::transpose(params)
     for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
 
-    # Compute twCRPS
+    # Compute stwCRPS
     stats[[i]]$out_of_sample_twostep[[j]] = list()
     for (k in seq_along(unique(out_of_fold_data$id))) {
       id = unique(out_of_fold_data$id)[k]
       obs = dplyr::filter(out_of_fold_data, id == !!id)$value
       locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
-      stats[[i]]$out_of_sample_twostep[[j]][[k]] = twcrps_gev(
+      stats[[i]]$out_of_sample_twostep[[j]][[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
 
@@ -235,13 +235,13 @@ for (i in seq_along(hour_vec)) {
         mesh = mesh,
         coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
 
-      # Compute twCRPS at all leave-out locations
+      # Compute stwCRPS at all leave-out locations
       stats[[i]]$out_of_sample_joint[[j]] = list()
       for (k in seq_along(unique(out_of_fold_data$id))) {
         id = unique(out_of_fold_data$id)[k]
         obs = dplyr::filter(out_of_fold_data, id == !!id)$value
         locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
-        stats[[i]]$out_of_sample_joint[[j]][[k]] = twcrps_gev(
+        stats[[i]]$out_of_sample_joint[[j]][[k]] = stwcrps_bgev(
           obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
       }
     }

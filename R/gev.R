@@ -53,6 +53,19 @@ twcrps_gev = function(y, μ, σ, ξ, p) {
   res
 }
 
+#' @export
+stwcrps_gev = function(y, μ, σ, ξ, p) {
+  f = function(x) twcrps_gev(x, μ, σ, ξ, p) * dgev(x, μ, σ, ξ)
+  g = function(u) f(-log(u)) / u
+  lower = qgev(0, μ, σ, ξ)
+  if (lower < 0) {
+    expected_score = integrate(f, lower, 0)$value + integrate(g, 0, 1)$value
+  } else {
+    expected_score = integrate(g, 0, exp(-lower))$value
+  }
+  twcrps_gev(y, μ, σ, ξ, p) / abs(expected_score) + log(abs(expected_score))
+}
+
 twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
   Fy = pgev(y, μ, σ, ξ)
   Ei = function(x) {
