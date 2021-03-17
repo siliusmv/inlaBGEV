@@ -250,7 +250,6 @@ for (i in seq_along(hour_vec)) {
   }
 
   # Print results for this specific aggregation period
-  message("Number of succesful runs: ", length(twostep), " of ", n_sd_samples)
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
           "=========================================")
@@ -268,7 +267,6 @@ saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"
 
 # Print the final results
 for (i in seq_along(stats)) {
-  message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
           "=========================================")

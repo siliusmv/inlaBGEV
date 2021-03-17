@@ -62,25 +62,89 @@ twcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
   twcrps_gev(y, μ, σ, ξ, p)
 }
 
+
 #' @export
-stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2, num_cores = 6) {
-  f = function(x, μ, σ, ξ, p, p_a, p_b) twcrps_bgev(x, μ, σ, ξ, p) * dbgev(x, μ, σ, ξ, p_a, p_b)
-  g_lower = function(u, ...) f(log(u), ...) / u
-  g_upper = function(u, ...) f(-log(u), ...) / u
-  one_stwcrps = function(y, μ, σ, ξ, p, p_a, p_b) {
-    expected_score = integrate(
-      function(u, ...) g_lower(u, ...) + g_upper(u, ...), lower = 0, upper = 1,
-      μ = μ, σ = σ, ξ = ξ, p = p, p_a = p_a, p_b = p_b)$value
-    twcrps_bgev(y, μ, σ, ξ, p, p_b) / abs(expected_score) + log(abs(expected_score))
+stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2, ...) {
+  S = abs(expected_twcrps_bgev(μ, σ, ξ, p, p_a, p_b, ...))
+  twcrps = twcrps_bgev(y, μ, σ, ξ, p, p_b)
+  # We need to repeat the constants S if we have multiple observations to test against
+  if (length(y) > 1) {
+    # If we also have multiple parameter combinations then twcrps is a matrix
+    if (!is.null(dim(twcrps))) {
+      S = matrix(rep(S, each = length(y)), nrow = length(y), ncol = length(S))
+    }
   }
-  fix_lengths(μ, σ, ξ)
-  parallel::mcmapply(
-    FUN = function(y, ...) sapply(y, one_stwcrps, ...),
-    mc.cores = num_cores,
-    μ = μ, σ = σ, ξ = ξ,
-    MoreArgs = list(y = y, p = p, p_a = p_a, p_b = p_b))
+  twcrps / S + log(S)
 }
 
+expected_twcrps_bgev = function(μ, σ, ξ, p, p_a = .1, p_b = .2, n_steps = 3) {
+  #Fy = pgev(y, μ, σ, ξ)
+  Ei = function(x) {
+    res = rep(0, length(x))
+    res[x > -700] = gsl::expint_Ei(x[x > -700])
+    res
+  }
+  #p1 = pmax(p, Fy)
+  a = qgev(p_a, μ, σ, ξ); b = qgev(p_b, μ, σ, ξ)
+  gumbel_par = get_gumbel_par(μ, σ, ξ, p_a, p_b)
+  μ2 = gumbel_par$μ; σ2 = gumbel_par$σ
+
+  # Compute expected value of y * (-p^2 - 1) ===========================
+  # integral over the Frechet and Gumbel domains
+  gumbel_expected_value = μ2 * p_a - σ2 * p_a * log(-log(p_a)) + σ2 * Ei(log(p_a))
+  frechet_expected_value = (μ - σ / ξ) * (1 - p_b) - σ / ξ * gamma(1 - ξ) *
+    (pgamma(0, 1 - ξ) - pgamma(-log(p_b), 1 - ξ))
+  # Approximate integral over the blended domain using linear interpolation of log(F(x))
+  blended_expected_value = 0
+  for (i in seq_len(n_steps)) {
+    x_i = a + (i - 1) * (b - a) / n_steps
+    x_iplus = a + i * (b - a) / n_steps
+    h_i = log(pbgev(x_i, μ, σ, ξ, p_a, p_b))
+    h_iplus = log(pbgev(x_iplus, μ, σ, ξ, p_a, p_b))
+    blended_expected_value = blended_expected_value + (x_iplus - x_i) / (h_iplus - h_i) *
+      (exp(h_iplus) * (h_iplus - 1) - exp(h_i) * (h_i - 1)) +
+      (x_i * h_iplus - x_iplus * h_i) / (h_iplus - h_i) * (exp(h_iplus) - exp(h_i))
+  }
+  # Compute the expected value, and multiply with the constant
+  tmp1 = (gumbel_expected_value + frechet_expected_value + blended_expected_value) * (-p^2 - 1)
+
+  # Compute the expected value of 2y * max(p0, F(y)) ===========================
+  # integral over the Frechet domain, ending at p
+  frechet_integral_to_p = (μ - σ / ξ) * (p - p_b) - σ / ξ * gamma(1 - ξ) *
+    (pgamma(-log(p), 1 - ξ) - pgamma(-log(p_b), 1 - ξ)) 
+  # Compute the expected value, and multiply with the constant
+  tmp2 = (gumbel_expected_value + blended_expected_value + frechet_integral_to_p) * 2 * p +
+    (μ - σ / ξ) * (1 - p^2) +
+    2^ξ * σ / ξ * gamma(1 - ξ) * (pgamma(-2 * log(p), 1 - ξ) - pgamma(0, 1 - ξ))
+
+  # Compute the expected value of 2(-μ + σ/ξ) * max(p0, F(y)) ====================
+  tmp3 = (-μ + σ / ξ) * (1 + p^2)
+
+  # Compute the expected value of 2σ/ξ * Γ_l(-log(max(p0, F(y))), 1 - ξ) ===========
+  approx_gamma_int = get_integral_of_gamma_l_with_xi(p, max(.5, ξ))
+  tmp4 = 2 * (σ / ξ) * (p * gamma(1 - ξ) * pgamma(-log(p), 1 - ξ) + approx_gamma_int(ξ))
+
+  # Compute the expected value of some constants ===========
+  tmp5 = (-μ + σ / ξ) * (-p^2 - 1) - σ / ξ * 2^ξ * gamma(1 - ξ) * pgamma(-2 * log(p), 1 - ξ)
+
+  # Sum everything and return it
+  tmp1 + tmp2 + tmp3 + tmp4 + tmp5
+}
+
+get_integral_of_gamma_l_with_xi = function(p, ξ_max = .5) {
+  if (ξ_max > .5) warning("I don't know if this gives a good approximation for ξ > 0.5")
+  ξ_vals = seq(0, ξ_max, length = 5)
+  int_vals = vector("numeric", length(ξ_vals))
+  f = function(x, ξ) gamma(1 - ξ) * pgamma(-log(x), 1 - ξ)
+  for (i in seq_along(ξ_vals)) {
+    int_vals[i] = integrate(f, p, 1, ξ = ξ_vals[i])$value
+  }
+  coeffs = lm(y~poly(ξ, 4, raw = TRUE), data = data.frame(ξ = ξ_vals, y = int_vals))$coefficients
+  function(ξ) {
+    res = coeffs[1] + coeffs[2] * ξ + coeffs[3] * ξ^2 + coeffs[4] * ξ^3 + coeffs[5] * ξ^4
+    unname(res)
+  }
+}
 
 #' @export
 return_level_bgev = function(period, μ, σ, ξ, p_a = .1, p_b = .2, s = 5) {

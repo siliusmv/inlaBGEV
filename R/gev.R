@@ -66,7 +66,7 @@ stwcrps_gev = function(y, μ, σ, ξ, p, num_cores = 6) {
   }
   fix_lengths(μ, σ, ξ)
   parallel::mcmapply(
-    FUN = function(y, ...) sapply(y, one_stwcrps, ...),
+    FUN = function(y, ...) one_stwcrps(y, ...),
     mc.cores = num_cores,
     μ = μ, σ = σ, ξ = ξ,
     MoreArgs = list(y = y, p = p))
@@ -76,7 +76,7 @@ twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
   Fy = pgev(y, μ, σ, ξ)
   Ei = function(x) {
     res = rep(0, length(x))
-    res[x > -700] = gsl::expint_Ei(x[x > -500])
+    res[x > -700] = gsl::expint_Ei(x[x > -700])
     res
   }
   p1 = pmax(p, Fy)
