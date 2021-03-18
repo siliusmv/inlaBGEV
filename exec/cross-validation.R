@@ -11,8 +11,8 @@ library(INLA)
 hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
-n_sd_samples = 10 # Number of samples drawn from the distribution of the SD
-num_cores = 10 # Number of cores used for parallel computations
+n_sd_samples = 1 # Number of samples drawn from the distribution of the SD
+num_cores = 1 # Number of cores used for parallel computations
 n_folds = 5 # number of folds for cross-validation
 p0 = .9 # Threshold used in the stwCRPS
 
@@ -129,7 +129,9 @@ for (i in seq_along(hour_vec)) {
 
   if (!is.null(joint)) {
     # Sample from the posterior of the joint model
-    samples = inla.posterior.sample(100 * length(twostep), joint)
+    set.seed(1)
+    samples = inla.posterior.sample(
+      sum(sapply(twostep, function(x) length(x$samples))), joint, seed = 1)
 
     # Estimate parameters at all locations
     params = inla_bgev_pars(
@@ -156,8 +158,7 @@ for (i in seq_along(hour_vec)) {
     # Split the data up into in-sample and out-of-sample data for the current folds
     in_fold_sd_df = dplyr::filter(sd_df, id %in% ids[folds != j])
     in_fold_data = dplyr::filter(data, id %in% ids[folds != j])
-    out_of_fold_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
-      dplyr::filter(id %in% ids[folds == j])
+    out_of_fold_data = dplyr::filter(data, id %in% ids[folds == j])
 
     # Estimate s^*
     sd_stack = inla_stack(in_fold_sd_df, covariate_names[[2]],
@@ -193,7 +194,7 @@ for (i in seq_along(hour_vec)) {
     for (k in seq_along(twostep)) {
       params[[k]] = inla_bgev_pars(
         samples = twostep[[k]]$samples,
-        data = out_of_fold_data,
+        data = dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE),
         covariate_names = list(covariate_names[[1]], NULL, NULL),
         s_est = twostep[[k]]$s_est,
         mesh = mesh,
@@ -224,12 +225,14 @@ for (i in seq_along(hour_vec)) {
     message("Done with out-of-sample joint model for fold ", j)
 
     if (!is.null(joint)) {
-      samples = inla.posterior.sample(100 * length(twostep), joint)
+      set.seed(1)
+      samples = inla.posterior.sample(
+        sum(sapply(twostep, function(x) length(x$samples))), joint, seed = 1)
 
       # Compute sampled parameters at all leave-out locations
       params = inla_bgev_pars(
         samples = samples,
-        data = out_of_fold_data,
+        data = dplyr::distint(out_of_fold_data, id, .keep_all = TRUE),
         covariate_names = covariate_names,
         s_est = rep(joint$standardising_const, length(unique(out_of_fold_data$id))),
         mesh = mesh,
