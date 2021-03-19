@@ -8,7 +8,7 @@ library(parallel)
 n_vec = c(5, 10, 25, 50, 100, 250, 500, 1000)
 n_trials = 200
 num_cores = 20
-return_periods = c(10, 20, 50)
+return_periods = c(5, 10, 25, 50)
 
 inclusion_percentages = list()
 for (i in seq_along(n_vec)) {
@@ -28,12 +28,6 @@ for (i in seq_along(n_vec)) {
       y = rgev(n, μ, σ, ξ)
       res = tryCatch(inla_bgev(y, α = α, β = β), error = function(e) NULL)
       if (is.null(res)) return(NULL)
-      q_interval = (res$summary.fixed * res$standardising_const)[c(3, 5)]
-      q_inside_interval = q >= q_interval[1] && q <= q_interval[2]
-      s_interval = (res$summary.hyper[1, ] * res$standardising_const)[c(3, 5)]
-      s_inside_interval = s >= s_interval[1] && s <= s_interval[2]
-      ξ_interval = (res$summary.hyper[2, ])[c(3, 5)]
-      ξ_inside_interval = ξ >= ξ_interval[1] && ξ <= ξ_interval[2]
       samples = INLA::inla.posterior.sample(500, res, seed = 1)
       q_s = sapply(samples, function(x) tail(x$latent, 1)) * res$standardising_const
       s_s = sapply(samples, function(x) x$hyperpar[1]) * res$standardising_const
@@ -44,8 +38,12 @@ for (i in seq_along(n_vec)) {
                                  MoreArgs = list(period = return_periods))
 
       pars = c("q", "s", "ξ", paste(return_periods, "return period"))
-      is_inside = c(q_inside_interval, s_inside_interval, ξ_inside_interval)
+      is_inside = NULL
       values = c(q, s, ξ, return_levels)
+      for (var in c("q", "s", "ξ")) {
+        interval = quantile(get(paste0(var, "_s")), c(.025, .975))
+        is_inside = c(is_inside, get(var) >= interval[1] && get(var) <= interval[2])
+      }
       for (i in seq_along(return_periods)) {
         interval = quantile(est_return_levels[i, ], c(.025, .975))
         is_inside = c(is_inside, return_levels[i] >= interval[1] && return_levels[i] <= interval[2])
@@ -53,7 +51,7 @@ for (i in seq_along(n_vec)) {
       data.frame(par = pars,
                  val = values,
                  inside = is_inside,
-                 n = n)
+                 n = n, j = j)
     })
   inclusion = inclusion[!sapply(inclusion, is.null)]
   inclusion = do.call(rbind, inclusion)
@@ -65,7 +63,7 @@ for (i in seq_along(n_vec)) {
       data.frame(par = par, n = inclusion$n[1], inclusion_percentage = mean(included))
     })
   inclusion_percentages[[i]] = do.call(rbind, inclusion_percentages[[i]])
-  message("Done with n = ", n, ". Summary:")
+  message("Done with n = ", n, ". Number of successful runs: ", length(unique(inlusion$j)))
   print(inclusion_percentages[[i]])
   saveRDS(
     inclusion_percentages,
