@@ -85,14 +85,19 @@ inla_stack = function(df, covariate_names, response_name, spde = NULL, tag = "ta
 
 #' @export
 inla_bgev = function(data,
-                     covariate_names,
                      response_name,
+                     covariate_names = NULL,
                      s_est = rep(1, nrow(data)),
                      spde = NULL,
                      diagonal = "NULL",
                      α = .5,
                      β = .8,
                      ...) {
+  # In case data is only a vector
+  if (is.vector(data)) {
+    data = data.frame(value = data)
+    response_name = "value"
+  }
   # Standardise the observations by dividing on the estimated spread, and then
   # dividing by a constant so the difference between 5% quantile and 95% quantile is 1
   if (nrow(data) != length(s_est)) stop("Lengths of 'data' and 's_est' differ")

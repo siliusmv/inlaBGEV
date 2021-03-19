@@ -70,7 +70,6 @@ twostep_modelling = function(data,
         error = function(e) NULL)
       message("Done with iter nr. ", i)
       if (is.null(res)) return(NULL)
-      set.seed(1)
       samples = INLA::inla.posterior.sample(ceiling(num_samples / n_sd_samples), res, seed = 1)
       list(s_est = s_est[prediction_indices] * res$standardising_const, samples = samples)
     })

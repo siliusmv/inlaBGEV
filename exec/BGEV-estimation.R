@@ -13,8 +13,8 @@ hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
-n_sd_samples = 10 # Number of samples drawn from the distribution of the SD
-num_cores = 10 # Number of cores used for parallel computations
+n_sd_samples = 1 # Number of samples drawn from the distribution of the SD
+num_cores = 1 # Number of cores used for parallel computations
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
@@ -104,35 +104,35 @@ my_breaks = c(6, 10, 14, 18, 22, 26)
 p1 = stats[[1]]$fun %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
 p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation")
 
 my_breaks = seq(10, by = 6, length = 6)
 p2 = stats[[2]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
 p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation")
 
 my_breaks = seq(16, by = 10, length = 6)
 p3 = stats[[3]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
 p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation")
 
 my_breaks = seq(20, by = 15, length = 6)
 p4 = stats[[4]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
 p4[[1]] = p4[[1]] + labs(title = "12 hour precipitatio")
 
 my_breaks = seq(30, by = 20, length = 6)
 p5 = stats[[5]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, CI_breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
 p5[[1]] = p5[[1]] + labs(title = "24 hour precipitatio")
 
 
