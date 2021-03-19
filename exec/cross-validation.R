@@ -232,7 +232,7 @@ for (i in seq_along(hour_vec)) {
       # Compute sampled parameters at all leave-out locations
       params = inla_bgev_pars(
         samples = samples,
-        data = dplyr::distint(out_of_fold_data, id, .keep_all = TRUE),
+        data = dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE),
         covariate_names = covariate_names,
         s_est = rep(joint$standardising_const, length(unique(out_of_fold_data$id))),
         mesh = mesh,
