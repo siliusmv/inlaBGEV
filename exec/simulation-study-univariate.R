@@ -21,7 +21,7 @@ for (i in seq_along(n_vec)) {
     FUN = function(j) {
       q = rnorm(1, 0, 5)
       s = runif(1, 0, 10)
-      ξ = runif(1, 0, .5)
+      ξ = runif(1, 0, .4)
       locscale_pars = locspread_to_locscale(q, s, ξ, α, β)
       μ = locscale_pars$μ; σ = locscale_pars$σ
       return_levels = return_level_bgev(return_periods, μ, σ, ξ)
@@ -32,7 +32,7 @@ for (i in seq_along(n_vec)) {
       q_s = sapply(samples, function(x) tail(x$latent, 1)) * res$standardising_const
       s_s = sapply(samples, function(x) x$hyperpar[1]) * res$standardising_const
       ξ_s = sapply(samples, function(x) x$hyperpar[2])
-      locscale_s = locspread_to_locscale(q_s, s_s, ξ_s)
+      locscale_s = locspread_to_locscale(q_s, s_s, ξ_s, α, β)
       μ_s = locscale_s$μ; σ_s = locscale_s$σ
       est_return_levels = mapply(return_level_bgev, μ = μ_s, σ = σ_s, ξ = ξ_s,
                                  MoreArgs = list(period = return_periods))
@@ -63,7 +63,7 @@ for (i in seq_along(n_vec)) {
       data.frame(par = par, n = inclusion$n[1], inclusion_percentage = mean(included))
     })
   inclusion_percentages[[i]] = do.call(rbind, inclusion_percentages[[i]])
-  message("Done with n = ", n, ". Number of successful runs: ", length(unique(inlusion$j)))
+  message("Done with n = ", n, ". Number of successful runs: ", length(unique(inclusion$j)))
   print(inclusion_percentages[[i]])
   saveRDS(
     inclusion_percentages,
