@@ -5,7 +5,7 @@ library(inlaBGEV)
 library(parallel)
 
 α = .5; β = .8 # Probabilities used in the location and spread parameters
-n_vec = c(5, 10, 25, 50, 100, 250, 500, 1000)
+n_vec = c(50, 100, 250, 500, 1000, 2000)
 n_trials = 200
 num_cores = 20
 return_periods = c(5, 10, 25, 50)
@@ -38,20 +38,29 @@ for (i in seq_along(n_vec)) {
                                  MoreArgs = list(period = return_periods))
 
       pars = c("q", "s", "ξ", paste(return_periods, "return period"))
-      is_inside = NULL
+      is_inside = NULL; lower = NULL; upper = NULL; mean_vals = NULL
       values = c(q, s, ξ, return_levels)
       for (var in c("q", "s", "ξ")) {
         interval = quantile(get(paste0(var, "_s")), c(.025, .975))
         is_inside = c(is_inside, get(var) >= interval[1] && get(var) <= interval[2])
+        lower = c(lower, interval[1]); upper = c(upper, interval[2])
+        mean_vals = c(mean_vals, mean(get(paste0(var, "_s"))))
       }
       for (i in seq_along(return_periods)) {
         interval = quantile(est_return_levels[i, ], c(.025, .975))
         is_inside = c(is_inside, return_levels[i] >= interval[1] && return_levels[i] <= interval[2])
+        lower = c(lower, interval[1]); upper = c(upper, interval[2])
+        mean_vals = c(mean_vals, mean(est_return_levels[i, ]))
       }
       data.frame(par = pars,
                  val = values,
                  inside = is_inside,
-                 n = n, j = j)
+                 n = n, j = j,
+                 lower = lower,
+                 mean = mean_vals,
+                 upper = upper,
+                 CI_width = upper - lower,
+                 err = abs(mean_vals - val))
     })
   inclusion = inclusion[!sapply(inclusion, is.null)]
   inclusion = do.call(rbind, inclusion)
@@ -59,8 +68,11 @@ for (i in seq_along(n_vec)) {
     X = seq_along(unique(inclusion$par)),
     FUN = function(i) {
       par = unique(inclusion$par)[i]
-      included = dplyr::filter(inclusion, par == !!par)$inside
-      data.frame(par = par, n = inclusion$n[1], inclusion_percentage = mean(included))
+      df = dplyr::filter(inclusion, par == !!par)
+      data.frame(par = par, n = inclusion$n[1],
+                 inclusion_percentage = mean(df$inside),
+                 CI_width = mean(df$CI_width),
+                 err = mean(df$err))
     })
   inclusion_percentages[[i]] = do.call(rbind, inclusion_percentages[[i]])
   message("Done with n = ", n, ". Number of successful runs: ", length(unique(inclusion$j)))

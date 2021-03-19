@@ -101,9 +101,9 @@ expected_twcrps_bgev = function(μ, σ, ξ, p, p_a = .1, p_b = .2, n_steps = 3) 
     x_iplus = a + i * (b - a) / n_steps
     h_i = log(pbgev(x_i, μ, σ, ξ, p_a, p_b))
     h_iplus = log(pbgev(x_iplus, μ, σ, ξ, p_a, p_b))
-    blended_expected_value = blended_expected_value + (x_iplus - x_i) / (h_iplus - h_i) *
-      (exp(h_iplus) * (h_iplus - 1) - exp(h_i) * (h_i - 1)) +
-      (x_i * h_iplus - x_iplus * h_i) / (h_iplus - h_i) * (exp(h_iplus) - exp(h_i))
+    blended_expected_value = blended_expected_value +
+      x_iplus * exp(h_iplus) - x_i * exp(h_i) +
+      (x_iplus - x_i) * (exp(h_i) - exp(h_iplus)) / (h_iplus - h_i)
   }
   # Compute the expected value, and multiply with the constant
   tmp1 = (gumbel_expected_value + frechet_expected_value + blended_expected_value) * (-p^2 - 1)

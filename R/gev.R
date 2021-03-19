@@ -92,7 +92,7 @@ twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
 }
 
 #' @export
-locscale_to_locspread = function(μ, σ, ξ, α = .5, β = .25) {
+locscale_to_locspread = function(μ, σ, ξ, α = .5, β = .8) {
   fix_lengths(μ, σ, ξ)
   s = σ * (ℓ(1 - β / 2, ξ) - ℓ(β / 2, ξ)) / ifelse(ξ == 0, 1, ξ)
   q = μ + s * ℓ(α, ξ) / (ℓ(1 - β / 2, ξ) - ℓ(β / 2, ξ))
@@ -100,7 +100,7 @@ locscale_to_locspread = function(μ, σ, ξ, α = .5, β = .25) {
 }
 
 #' @export
-locspread_to_locscale = function(q, s, ξ, α = .5, β = .25) {
+locspread_to_locscale = function(q, s, ξ, α = .5, β = .8) {
   fix_lengths(q, s, ξ)
   μ = q - s * ℓ(α, ξ) / (ℓ(1 - β / 2, ξ) - ℓ(β / 2, ξ))
   σ = s / (ℓ(1 - β / 2, ξ) - ℓ(β / 2, ξ)) * ifelse(ξ == 0, 1, ξ)

@@ -120,7 +120,7 @@ inla_bgev = function(data,
     q_formula = as.formula(paste(response_name, "~", paste(covariate_names[[1]], collapse = " + ")))
     est_q_coeffs = quantreg::rq(q_formula, α, data)$coefficients
   } else {
-    est_q_coeffs = c("intercept" = median(data[[response_name]]))
+    est_q_coeffs = c("intercept" = quantile(data[[response_name]], α))
   }
   control.fixed = inla_location_prior(est_q_coeffs, precision = 10)
 
