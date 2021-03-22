@@ -56,8 +56,7 @@ dbgev = function(x, μ, σ, ξ, p_a = .1, p_b = .2, s = 5, log = FALSE) {
   res
 }
 
-#' @export
-twcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
+twcrps_bgev_onepar = function(y, μ, σ, ξ, p, p_b = .2) {
   if (p < p_b) stop("twcrps_bgev is not implemented for p < p_b")
   twcrps_gev(y, μ, σ, ξ, p)
 }
@@ -67,17 +66,47 @@ twcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
 stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2, ...) {
   S = abs(expected_twcrps_bgev(μ, σ, ξ, p, p_a, p_b, ...))
   twcrps = twcrps_bgev(y, μ, σ, ξ, p, p_b)
-  # We need to repeat the constants S if we have multiple observations to test against
-  if (length(y) > 1) {
-    # If we also have multiple parameter combinations then twcrps is a matrix
-    if (!is.null(dim(twcrps))) {
-      S = matrix(rep(S, each = length(y)), nrow = length(y), ncol = length(S))
-    }
-  }
   twcrps / S + log(S)
 }
 
-expected_twcrps_bgev = function(μ, σ, ξ, p, p_a = .1, p_b = .2, n_steps = 3) {
+#' @export
+twcrps_bgev = function(y, μ, σ, ξ, p, p_b = .2) {
+  if (p < p_b) stop("p is smaller than p_b. This is not implemented yet")
+  F = function(x) sapply(x, function(z) mean(pgev(z, μ, σ, ξ))) # use pgev for speed
+  quantiles = qbgev(p, μ, σ, ξ)
+  if (length(quantiles) == 1) {
+    y_min = quantiles
+  } else {
+    y_min = uniroot(function(x) F(x) - p, lower = min(quantiles), upper = max(quantiles))$root
+  }
+  p_max = .999
+  y_max = max(qbgev(p_max, μ, σ, ξ), max(y) + 1)
+  res = rep(0, length(y))
+  for (i in seq_along(y)) {
+    if (y[i] < y_min) {
+      res[i] = integrate(function(x) (1 - F(x))^2, lower = y_min, upper = y_max)$value
+    } else if (y[i] < y_max) {
+      res[i] = integrate(function(x) F(x)^2, lower = y_min, upper = y[i])$value
+      res[i] = res[i] + integrate(function(x) (1 - F(x))^2, lower = y[i], upper = y_max)$value
+    } else {
+      res[i] = integrate(function(x) F(x)^2, lower = y_min, upper = y_max)$value
+    }
+  }
+  res = res + (y_min - y) * (ifelse(y <= y_min, 1, 0) - p)^2
+  res
+}
+
+expected_twcrps_bgev = function(μ, σ, ξ, p, p_a = .1, p_b = .2) {
+  p_min = .00001
+  y_min = min(qbgev(p_min, μ, σ, ξ))
+  p_max = .99999
+  y_max = max(qbgev(p_max, μ, σ, ξ))
+  density = function(x) sapply(x, function(z) mean(dbgev(z, μ, σ, ξ, p_a, p_b)))
+  integrate(function(y) density(y) * twcrps_bgev(y, μ, σ, ξ, p, p_b),
+            lower = y_min, upper = y_max)$value
+}
+
+expected_twcrps_bgev_onepar = function(μ, σ, ξ, p, p_a = .1, p_b = .2, n_steps = 3) {
   #Fy = pgev(y, μ, σ, ξ)
   Ei = function(x) {
     res = rep(0, length(x))

@@ -18,9 +18,9 @@ get_return_level_function = function(period) {
 n = 1500 # Number of samples used for estimation
 n_loc = 250 # Number of "locations" that the data are sampled from
 α = .5; β = .8 # Probabilities used in the location and spread parameters
-n_trials = 10
+n_trials = 200
 block_size = 24 * 365
-num_cores = 10
+num_cores = 20
 
 #μ = rnorm(1)
 #σ = runif(1)
@@ -197,3 +197,5 @@ message("twostep inclusion stats")
 dplyr::filter(inclusion, model == "twostep") %>%
   .[, 1:6] %>%
   apply(2, mean)
+
+saveRDS(inclusion, file.path(here::here(), "inst", "extdata", "simulation2.rds"))
