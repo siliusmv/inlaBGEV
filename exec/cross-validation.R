@@ -183,6 +183,7 @@ for (i in seq_along(hour_vec)) {
       response_name = "value",
       diagonal = .05,
       n_sd_samples = n_sd_samples,
+      verbose = FALSE,
       spde = spde,
       num_cores = num_cores,
       α = α,
@@ -269,16 +270,17 @@ for (i in seq_along(hour_vec)) {
 saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"))
 
 # Print the final results
+q = c(.025, .25, .5, .75, .975, .99, 1)
 for (i in seq_along(stats)) {
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
           "=========================================")
   message("In sample, twostep:")
-  print(data_stats(unlist(stats[[i]]$in_sample_twostep)))
+  print(data_stats(unlist(stats[[i]]$in_sample_twostep), q))
   message("In sample, joint:")
-  print(data_stats(unlist(stats[[i]]$in_sample_joint)))
+  print(data_stats(unlist(stats[[i]]$in_sample_joint), q))
   message("Out of sample, twostep:")
-  print(data_stats(unlist(stats[[i]]$out_of_sample_twostep)))
+  print(data_stats(unlist(stats[[i]]$out_of_sample_twostep), q))
   message("Out of sample, joint:")
-  print(data_stats(unlist(stats[[i]]$out_of_sample_joint)))
+  print(data_stats(unlist(stats[[i]]$out_of_sample_joint), q))
 }

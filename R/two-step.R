@@ -9,6 +9,7 @@ twostep_modelling = function(data,
                              spde = NULL,
                              num_cores = 1,
                              num_samples = 500,
+                             verbose = FALSE,
                              α = .5,
                              β = .8,
                              ...) {
@@ -31,6 +32,7 @@ twostep_modelling = function(data,
       data = all_data,
       covariate_names = covariate_names[[2]],
       mesh = mesh,
+      verbose = verbose,
       fun = function(pars) exp(rnorm(length(pars$μ), pars$μ, 1 / sqrt(pars$τ))),
       n_batches = 20,
       family = "gaussian")
@@ -68,7 +70,7 @@ twostep_modelling = function(data,
           β = β,
           ...)},
         error = function(e) NULL)
-      message("Done with iter nr. ", i)
+      if (verbose) message("Done with iter nr. ", i)
       if (is.null(res)) return(NULL)
       samples = INLA::inla.posterior.sample(ceiling(num_samples / n_sd_samples), res, seed = 1)
       list(s_est = s_est[prediction_indices] * res$standardising_const, samples = samples)

@@ -60,7 +60,7 @@ for (i in 1:n_trials) {
       response_name = "obs"),
     error = function(e) NULL)
 
-  # Run R-inla with the two-step model 
+  # Run R-inla with the two-step model
   samples = parallel::mclapply(
     X = seq_len(n_standardised_samples),
     mc.cores = num_cores,

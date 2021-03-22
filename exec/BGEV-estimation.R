@@ -72,6 +72,7 @@ for (i in seq_along(hour_vec)) {
     response_name = "value",
     n_sd_samples = n_sd_samples,
     prediction_data = prediction_data,
+    verbose = FALSE,
     spde = spde,
     num_cores = num_cores,
     α = α,

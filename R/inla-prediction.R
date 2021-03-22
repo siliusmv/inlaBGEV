@@ -5,39 +5,55 @@ inla_stats = function(sample_list,
                       s_list = NULL,
                       mesh = NULL,
                       n_batches = 1L,
+                      verbose = TRUE,
                       fun = NULL,
                       quantiles = c(.025, .25, .5, .75, .975),
                       family = c("bgev", "gaussian"),
                       ...) {
-  # Divide the data into batches. This is necessary if you use a laptop with little RAM
+  # Divide the data into batches. This is necessary if you use a laptop with "finite" RAM
   batch_index = floor(seq(0, nrow(data), length.out = n_batches + 1))
   stats = vector("list", n_batches)
   pb = get_progress_bar(n_batches)
   for (b in seq_len(n_batches)) {
     rows = (batch_index[b] + 1):batch_index[b + 1]
     pars = list()
+    if (any(class(data) %in% c("sf", "sfc"))) {
+      mydata = sf::st_drop_geometry(data)[rows, ]
+      mycoords = sf::st_geometry(data)[rows, ]
+    } else {
+      mydata = data[rows, ]
+      mycoords = NULL
+    }
     for (i in seq_along(sample_list)) {
       # Compute posterior samples for the parameters at all locations
       if (family[1] == "bgev") {
       pars[[i]] = inla_bgev_pars(
         samples = sample_list[[i]],
-        data = sf::st_drop_geometry(data)[rows, ],
+        data = mydata,
         covariate_names = covariate_names,
         s_est = s_list[[i]][rows],
         mesh = mesh,
-        coords = sf::st_geometry(data)[rows, ])
+        coords = mycoords)
       } else if (family[1] == "gaussian") {
         pars[[i]] = inla_gaussian_pars(
           samples = sample_list[[i]],
-          data = sf::st_drop_geometry(data)[rows, ],
+          data = mydata,
           covariate_names = covariate_names,
           mesh = mesh,
-          coords = sf::st_geometry(data)[rows, ])
+          coords = mycoords)
       } else {
         stop("unknown family type")
       }
       # Compute some function of the sampled parameters, e.g. return level
-      if (!is.null(fun)) pars[[i]]$fun = matrix(fun(pars[[i]], ...), nrow = length(rows))
+      if (!is.null(fun)) {
+        if (is.function(fun)) {
+          pars[[i]]$fun = matrix(fun(pars[[i]], ...), nrow = length(rows))
+        } else {
+          for (j in seq_along(fun)) {
+            pars[[i]][[names(fun)[j]]] = matrix(fun[[j]](pars[[i]], ...), nrow = length(rows))
+          }
+        }
+      }
     }
     # Compute stats for the parameters and possibly the function values at all locations
     pars = purrr::transpose(pars)
@@ -49,7 +65,7 @@ inla_stats = function(sample_list,
       }
     }
     stats[[b]] = compute_data_stats(pars, quantiles)
-    pb$tick()
+    if (verbose) pb$tick()
   }
   pb$terminate()
 
@@ -115,16 +131,12 @@ inla_bgev_pars = function(samples,
   coeffs = inla_bgev_coeffs(samples, covariate_names)
 
   # Compute parameters at all locations and for all samples
-  if (is.null(dim(coeffs$q))) {
-    q = coeffs$q
-  } else {
-    q = X[, c("intercept", covariate_names[[1]])] %*% coeffs$q
-  }
+  q = matrix(X[, c("intercept", covariate_names[[1]])], nrow = nrow(X)) %*% coeffs$q
   if (is.null(dim(coeffs$s))) {
     s = matrix(rep(coeffs$s, each = nrow(X)), ncol = length(samples))
   } else {
     s = matrix(X[, "intercept"], nrow = nrow(X)) %*% coeffs$s[1, ] *
-      exp(X[, covariate_names[[2]]] %*% coeffs$s[-1, ])
+      exp(matrix(X[, covariate_names[[2]]], nrow = nrow(X)) %*% coeffs$s[-1, ])
   }
   ξ = matrix(rep(coeffs$ξ, each = nrow(X)), ncol = length(samples))
 

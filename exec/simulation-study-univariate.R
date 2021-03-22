@@ -5,8 +5,8 @@ library(inlaBGEV)
 library(parallel)
 
 α = .5; β = .8 # Probabilities used in the location and spread parameters
-n_vec = c(50, 100, 250, 500, 1000, 2000)
-n_trials = 200
+n_vec = c(50, 100, 500, 1000, 2000)
+n_trials = 2000
 num_cores = 20
 return_periods = c(5, 10, 25, 50)
 
@@ -60,7 +60,7 @@ for (i in seq_along(n_vec)) {
                  mean = mean_vals,
                  upper = upper,
                  CI_width = upper - lower,
-                 err = abs(mean_vals - val))
+                 err = abs(mean_vals - values))
     })
   inclusion = inclusion[!sapply(inclusion, is.null)]
   inclusion = do.call(rbind, inclusion)

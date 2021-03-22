@@ -1,0 +1,199 @@
+library(INLA)
+library(ggplot2)
+library(dplyr)
+library(inlaBGEV)
+library(parallel)
+library(sf)
+library(mvtnorm)
+
+
+get_return_level_function = function(period) {
+  function(pars) {
+    locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
+    return_level_bgev(period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
+  }
+}
+
+
+n = 1500 # Number of samples used for estimation
+n_loc = 250 # Number of "locations" that the data are sampled from
+α = .5; β = .8 # Probabilities used in the location and spread parameters
+n_trials = 10
+block_size = 24 * 365
+num_cores = 10
+
+#μ = rnorm(1)
+#σ = runif(1)
+#ξ = runif(1)
+#k = 50
+#μ_k = μ + σ / ξ * (k^ξ - 1)
+#σ_k = σ * k^ξ
+#x = seq(qgev(.1, μ_k, σ_k, ξ), qgev(.9, μ_k, σ_k, ξ), length = 10)
+#y1 = pgev(x, μ, σ, ξ)^k
+#y2 = pbgev(x, μ_k, σ_k, ξ)
+#y1 - y2
+
+set.seed(1, kind = "L'Ecuyer-CMRG")
+inclusion = parallel::mclapply(
+  X = seq_len(n_trials),
+  mc.cores = num_cores,
+  mc.preschedule = FALSE,
+  FUN = function(i) {
+    inclusion = list(twostep = list(), joint = list())
+
+    μ = rep(0, n_loc)
+    n_σ = sample.int(4, 1)
+    σ_coeffs = c(runif(1, 1, 3), rnorm(n_σ, 0, .2)) / 10
+    ξ = rep(runif(1, .01, .4), n_loc)
+    covariate_names = list(NULL, paste0("σ_", seq_len(n_σ)), NULL)
+
+    X = cbind(1, matrix(rnorm(n_σ * n_loc), nrow = n_loc))
+    colnames(X) = c("intercept", covariate_names[[2]])
+
+    # Simulate coordinates
+    #proj = "+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs"
+    #coords = data.frame(x = runif(n_loc) + 58, y = runif(n_loc) + 60) %>%
+    #  st_as_sf(coords = c("x", "y"), crs = st_crs(4326)) %>%
+    #  st_transform(proj)
+
+    ## Create the covariance matrix of a spatial Gaussian field
+    #distances = as.matrix(st_distance(coords))
+    #units(distances) = NULL
+    #matern_correlation = function(distances, ρ, ν = 1) {
+    #  κ = sqrt(8 * ν) / ρ
+    #  Σ = besselK(distances * κ, ν) * (κ * distances) ^ ν * 2 ^ (1 - ν) / gamma(ν)
+    #  diag(Σ) = 1 + 1e-10 # Ensure numerical stability
+    #  Σ
+    #}
+    #ρ = 30
+    #matern_σ = 1
+    #Σ = matern_σ^2 * matern_correlation(distances, ρ)
+
+    σ = as.numeric(exp(X %*% σ_coeffs))
+    # We want the block location par to be zero
+    μ = μ - σ / ξ * (block_size^ξ * (-log(α))^-ξ - 1)
+
+    location_indices = c(seq_len(n_loc), sample.int(n_loc, n - n_loc, replace = TRUE))
+
+    x = matrix(nrow = block_size, ncol = n)
+    for (j in seq_len(n)) {
+      x[, j] = rgev(
+        block_size, μ[location_indices[j]], σ[location_indices[j]], ξ[location_indices[j]])
+    }
+    y = apply(x, 2, max)
+
+    df = data.frame(X[location_indices, ])
+    df$y = y
+
+    μ_k = μ + σ / ξ * (block_size^ξ - 1)
+    σ_k = σ * block_size^ξ
+    q_k = locscale_to_locspread(μ_k, σ_k, ξ, α, β)$q
+    s_k = locscale_to_locspread(μ_k, σ_k, ξ, α, β)$s
+    r10 = return_level_bgev(10, μ_k, σ_k, ξ)
+    r25 = return_level_bgev(25, μ_k, σ_k, ξ)
+    r50 = return_level_bgev(50, μ_k, σ_k, ξ)
+
+    # Run R-INLA with the joint model
+    joint_res = tryCatch(
+      inla_bgev(
+        data = df,
+        response_name = "y",
+        diagonal = .1,
+        covariate_names = covariate_names,
+        α = α,
+        β = β),
+      error = function(e) NULL)
+
+    if (!is.null(joint_res)) {
+      joint_samples = INLA::inla.posterior.sample(1000, joint_res, seed = 1)
+      joint_stats = inla_stats(
+        sample_list = list(joint_samples),
+        data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
+        covariate_names = covariate_names,
+        s_list = list(rep(joint_res$standardising_const, n_loc)),
+        verbose = FALSE,
+        fun = list(
+          r10 = get_return_level_function(10),
+          r25 = get_return_level_function(25),
+          r50 = get_return_level_function(50)))
+      inclusion$joint = data.frame(
+        q = q_k > joint_stats$q$`2.5%` & q_k < joint_stats$q$`97.5%`,
+        s = s_k > joint_stats$s$`2.5%` & s_k < joint_stats$s$`97.5%`,
+        ξ = ξ > joint_stats$ξ$`2.5%` & ξ < joint_stats$ξ$`97.5%`,
+        r10 = r10 > joint_stats$r10$`2.5%` & r10 < joint_stats$r10$`97.5%`,
+        r25 = r25 > joint_stats$r25$`2.5%` & r25 < joint_stats$r25$`97.5%`,
+        r50 = r50 > joint_stats$r50$`2.5%` & r50 < joint_stats$r50$`97.5%`,
+        n_σ = n_σ,
+        model = "joint")
+    }
+
+    # Run R-inla with the two-step model
+    s_est = sapply(
+      seq_len(n_loc),
+      function(i) {
+        obs = as.numeric(x[, which(location_indices == i)])
+        sd(obs[obs >= quantile(obs, .8)])
+      }
+    )
+
+    twostep_res = tryCatch(
+      inla_bgev(
+        data = df,
+        response_name = "y",
+        s_est = s_est[location_indices],
+        diagonal = .1,
+        covariate_names =  covariate_names,
+        α = α,
+        β = β),
+      error = function(e) NULL)
+
+    if (!is.null(twostep_res)) {
+      twostep_samples = INLA::inla.posterior.sample(1000, twostep_res, seed = 1)
+      twostep_stats = inla_stats(
+        sample_list = list(twostep_samples),
+        data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
+        covariate_names = covariate_names,
+        s_list = list(s_est * twostep_res$standardising_const),
+        verbose = FALSE,
+        fun = list(
+          r10 = get_return_level_function(10),
+          r25 = get_return_level_function(25),
+          r50 = get_return_level_function(50)))
+      inclusion$twostep = data.frame(
+        q = q_k > twostep_stats$q$`2.5%` & q_k < twostep_stats$q$`97.5%`,
+        s = s_k > twostep_stats$s$`2.5%` & s_k < twostep_stats$s$`97.5%`,
+        ξ = ξ > twostep_stats$ξ$`2.5%` & ξ < twostep_stats$ξ$`97.5%`,
+        r10 = r10 > twostep_stats$r10$`2.5%` & r10 < twostep_stats$r10$`97.5%`,
+        r25 = r25 > twostep_stats$r25$`2.5%` & r25 < twostep_stats$r25$`97.5%`,
+        r50 = r50 > twostep_stats$r50$`2.5%` & r50 < twostep_stats$r50$`97.5%`,
+        n_σ = n_σ,
+        model = "twostep")
+    }
+
+    message("Done with iter nr. ", i)
+    #message("twostep stats:")
+    #print(apply(inclusion$twostep[, 1:6], 2, mean))
+    #message("joint stats:")
+    #print(apply(inclusion$joint[, 1:6], 2, mean))
+
+    inclusion = rbind(inclusion[[1]], inclusion[[2]])
+    inclusion$i = i
+    inclusion$q_val = q_k
+    inclusion$s_val = s_k
+    inclusion$ξ_val = ξ
+    inclusion$r10_val = r10
+    inclusion$r25_val = r25
+    inclusion$r50_val = r50
+
+    inclusion
+  })
+inclusion = do.call(rbind, inclusion)
+
+message("joint inclusion stats")
+dplyr::filter(inclusion, model == "joint") %>%
+  .[, 1:6] %>%
+  apply(2, mean)
+message("twostep inclusion stats")
+dplyr::filter(inclusion, model == "twostep") %>%
+  .[, 1:6] %>%
+  apply(2, mean)
