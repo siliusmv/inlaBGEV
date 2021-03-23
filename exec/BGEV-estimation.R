@@ -64,6 +64,7 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$data$sd_spde = sd_spde
   sd_res = do.call(inla, sd_inla_args)
 
+
   # Run the two-step model
   samples = twostep_modelling(
     data = data,
@@ -94,6 +95,7 @@ for (i in seq_along(hour_vec)) {
 
   ρ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[3])))
   stats[[i]]$ρ = data_stats(ρ_samples)
+  stats[[i]]$sd_ρ = sd_res$summary.hyperpar[2, ]
 
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
@@ -211,4 +213,9 @@ for (i in seq_along(hour_vec)) {
 for (i in seq_along(hour_vec)) {
   message(paste(hour_vec[i], "hour ρ:"))
   print(stats[[i]]$ρ)
+}
+
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour sd_ρ:"))
+  print(stats[[i]]$sd_ρ)
 }
