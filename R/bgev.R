@@ -63,8 +63,8 @@ twcrps_bgev_onepar = function(y, μ, σ, ξ, p, p_b = .2) {
 
 
 #' @export
-stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2, ...) {
-  S = abs(expected_twcrps_bgev(μ, σ, ξ, p, p_a, p_b, ...))
+stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2) {
+  S = abs(expected_twcrps_bgev(μ, σ, ξ, p, p_a, p_b))
   twcrps = twcrps_bgev(y, μ, σ, ξ, p, p_b)
   twcrps / S + log(S)
 }

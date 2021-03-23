@@ -21,6 +21,7 @@ n_loc = 250 # Number of "locations" that the data are sampled from
 n_trials = 200
 block_size = 24 * 365
 num_cores = 20
+verbose = FALSE
 
 #μ = rnorm(1)
 #σ = runif(1)
@@ -39,7 +40,7 @@ inclusion = parallel::mclapply(
   mc.cores = num_cores,
   mc.preschedule = FALSE,
   FUN = function(i) {
-    inclusion = list(twostep = list(), joint = list())
+    inclusion = list()
 
     μ = rep(0, n_loc)
     n_σ = sample.int(4, 1)
@@ -116,15 +117,43 @@ inclusion = parallel::mclapply(
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
           r50 = get_return_level_function(50)))
-      inclusion$joint = data.frame(
-        q = q_k > joint_stats$q$`2.5%` & q_k < joint_stats$q$`97.5%`,
-        s = s_k > joint_stats$s$`2.5%` & s_k < joint_stats$s$`97.5%`,
-        ξ = ξ > joint_stats$ξ$`2.5%` & ξ < joint_stats$ξ$`97.5%`,
-        r10 = r10 > joint_stats$r10$`2.5%` & r10 < joint_stats$r10$`97.5%`,
-        r25 = r25 > joint_stats$r25$`2.5%` & r25 < joint_stats$r25$`97.5%`,
-        r50 = r50 > joint_stats$r50$`2.5%` & r50 < joint_stats$r50$`97.5%`,
-        n_σ = n_σ,
-        model = "joint")
+
+      joint_pars = inla_bgev_pars(
+        samples = joint_samples,
+        data = df,
+        covariate_names = covariate_names,
+        s_est = rep(joint_res$standardising_const, n_loc))
+      joint_score = vector("numeric", n)
+      for (j in seq_len(n_loc)) {
+        obs = y[which(location_indices == j)]
+        par = locspread_to_locscale(joint_pars$q[j, ], joint_pars$s[j, ],
+                                    joint_pars$ξ[j, ], α, β)
+        if (verbose) message(j)
+        joint_score[which(location_indices == j)] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+      }
+
+      inclusion$joint = lapply(
+        c("q", "s", "ξ", "r10", "r25", "r50"),
+        function(name) {
+          if (name %in% c("q", "s")) {
+            value_name = paste0(name, "_k")
+          } else {
+            value_name = name
+          }
+          res = data.frame(
+            name = name,
+            value = get(value_name),
+            lower = joint_stats[[name]]$`2.5%`,
+            upper = joint_stats[[name]]$`97.5%`,
+            mean = joint_stats[[name]]$mean,
+            score = joint_score,
+            n_σ = n_σ,
+            model = "joint")
+          res$err = res$value - res$mean
+          res$included = get(value_name) > res$lower & get(value_name) < res$upper
+          res
+        }) %>%
+        do.call(rbind, .)
     }
 
     # Run R-inla with the two-step model
@@ -159,15 +188,43 @@ inclusion = parallel::mclapply(
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
           r50 = get_return_level_function(50)))
-      inclusion$twostep = data.frame(
-        q = q_k > twostep_stats$q$`2.5%` & q_k < twostep_stats$q$`97.5%`,
-        s = s_k > twostep_stats$s$`2.5%` & s_k < twostep_stats$s$`97.5%`,
-        ξ = ξ > twostep_stats$ξ$`2.5%` & ξ < twostep_stats$ξ$`97.5%`,
-        r10 = r10 > twostep_stats$r10$`2.5%` & r10 < twostep_stats$r10$`97.5%`,
-        r25 = r25 > twostep_stats$r25$`2.5%` & r25 < twostep_stats$r25$`97.5%`,
-        r50 = r50 > twostep_stats$r50$`2.5%` & r50 < twostep_stats$r50$`97.5%`,
-        n_σ = n_σ,
-        model = "twostep")
+
+      twostep_pars = inla_bgev_pars(
+        samples = twostep_samples,
+        data = df,
+        covariate_names = covariate_names,
+        s_est = s_est * twostep_res$standardising_const)
+      twostep_score = vector("numeric", n)
+      for (j in seq_len(n_loc)) {
+        obs = y[which(location_indices == j)]
+        par = locspread_to_locscale(twostep_pars$q[j, ], twostep_pars$s[j, ],
+                                    twostep_pars$ξ[j, ], α, β)
+        if (verbose) message(j)
+        twostep_score[which(location_indices == j)] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+      }
+
+      inclusion$twostep = lapply(
+        c("q", "s", "ξ", "r10", "r25", "r50"),
+        function(name) {
+          if (name %in% c("q", "s")) {
+            value_name = paste0(name, "_k")
+          } else {
+            value_name = name
+          }
+          res = data.frame(
+            name = name,
+            value = get(value_name),
+            lower = twostep_stats[[name]]$`2.5%`,
+            upper = twostep_stats[[name]]$`97.5%`,
+            mean = twostep_stats[[name]]$mean,
+            score = twostep_score,
+            n_σ = n_σ,
+            model = "twostep")
+          res$err = res$value - res$mean
+          res$included = get(value_name) > res$lower & get(value_name) < res$upper
+          res
+        }) %>%
+        do.call(rbind, .)
     }
 
     message("Done with iter nr. ", i)
@@ -178,16 +235,26 @@ inclusion = parallel::mclapply(
 
     inclusion = rbind(inclusion[[1]], inclusion[[2]])
     inclusion$i = i
-    inclusion$q_val = q_k
-    inclusion$s_val = s_k
-    inclusion$ξ_val = ξ
-    inclusion$r10_val = r10
-    inclusion$r25_val = r25
-    inclusion$r50_val = r50
 
     inclusion
   })
 inclusion = do.call(rbind, inclusion)
+
+message("Joint StwCRPS:")
+print(summary(dplyr::filter(inclusion, model == "joint")$score))
+message("Twostep StwCRPS:")
+print(summary(dplyr::filter(inclusion, model == "twostep")$score))
+
+percentages = inclusion %>%
+  dplyr::group_by(name, n_σ, model) %>%
+  dplyr::mutate(percentage = mean(included)) %>%
+  dplyr::select(name, n_σ, model, percentage) %>%
+  dplyr::slice(1)
+
+ggplot(percentages) +
+  geom_col(aes(x = name, y = percentage, fill = model), position = "dodge") +
+  facet_wrap(~n_σ) +
+  geom_hline(yintercept = .95)
 
 message("joint inclusion stats")
 dplyr::filter(inclusion, model == "joint") %>%
