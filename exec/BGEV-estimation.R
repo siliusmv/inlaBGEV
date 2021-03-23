@@ -92,6 +92,9 @@ for (i in seq_along(hour_vec)) {
       return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
     })
 
+  ρ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[3])))
+  stats[[i]]$ρ = data_stats(ρ_samples)
+
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
@@ -201,4 +204,11 @@ tikz_plot(file.path(here::here(), "inst", "extdata", "BGEV-parameter-maps.pdf"),
 for (i in seq_along(hour_vec)) {
   message(paste(hour_vec[i], "hour ξ:"))
   print(stats[[i]]$ξ)
+}
+
+
+# Range summary =========================
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour ρ:"))
+  print(stats[[i]]$ρ)
 }

@@ -24,17 +24,6 @@ block_size = 24 * 365
 num_cores = 25
 verbose = FALSE
 
-#μ = rnorm(1)
-#σ = runif(1)
-#ξ = runif(1)
-#k = 50
-#μ_k = μ + σ / ξ * (k^ξ - 1)
-#σ_k = σ * k^ξ
-#x = seq(qgev(.1, μ_k, σ_k, ξ), qgev(.9, μ_k, σ_k, ξ), length = 10)
-#y1 = pgev(x, μ, σ, ξ)^k
-#y2 = pbgev(x, μ_k, σ_k, ξ)
-#y1 - y2
-
 set.seed(1, kind = "L'Ecuyer-CMRG")
 inclusion = parallel::mclapply(
   X = seq_len(n_trials),
@@ -98,6 +87,7 @@ inclusion = parallel::mclapply(
     r50 = return_level_bgev(50, μ_k, σ_k, ξ)
 
     # Run R-INLA with the joint model
+    joint_time = proc.time()
     joint_res = tryCatch(
       inla_bgev(
         data = in_sample_df,
@@ -107,6 +97,8 @@ inclusion = parallel::mclapply(
         α = α,
         β = β),
       error = function(e) NULL)
+    joint_time = proc.time() - joint_time
+    joint_time = sum(joint_time[-3]) # That is just how it works...
 
     if (!is.null(joint_res)) {
       joint_samples = INLA::inla.posterior.sample(1000, joint_res, seed = 1)
@@ -149,6 +141,7 @@ inclusion = parallel::mclapply(
             lower = joint_stats[[name]]$`2.5%`,
             upper = joint_stats[[name]]$`97.5%`,
             mean = joint_stats[[name]]$mean,
+            time = joint_time,
             score = joint_score,
             in_sample = location_indices > n_leave_out_loc,
             n_σ = n_σ,
@@ -178,6 +171,8 @@ inclusion = parallel::mclapply(
     sd_inla_args$formula = as.formula(
       paste("log_sd ~ -1 + intercept +", paste(covariate_names[[2]], collapse = " + ")))
     sd_inla_args$data = sd_df
+
+    twostep_time = proc.time()
     sd_res = do.call(inla, sd_inla_args)
 
     log_sd_samples = INLA::inla.posterior.sample(1000, sd_res, seed = 1)
@@ -200,6 +195,8 @@ inclusion = parallel::mclapply(
         α = α,
         β = β),
       error = function(e) NULL)
+    twostep_time = proc.time() - twostep_time
+    twostep_time = sum(twostep_time[-3]) # That is just how it works...
 
     if (!is.null(twostep_res)) {
       twostep_samples = INLA::inla.posterior.sample(1000, twostep_res, seed = 1)
