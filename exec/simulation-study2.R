@@ -15,12 +15,13 @@ get_return_level_function = function(period) {
 }
 
 
-n = 1500 # Number of samples used for estimation
+n = 2000 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
+n_leave_out_loc = 50
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 n_trials = 200
 block_size = 24 * 365
-num_cores = 20
+num_cores = 25
 verbose = FALSE
 
 #μ = rnorm(1)
@@ -40,8 +41,8 @@ inclusion = parallel::mclapply(
   mc.cores = num_cores,
   mc.preschedule = FALSE,
   FUN = function(i) {
-    inclusion = list()
 
+    inclusion = list()
     μ = rep(0, n_loc)
     n_σ = sample.int(4, 1)
     σ_coeffs = c(runif(1, 1, 3), rnorm(n_σ, 0, .2)) / 10
@@ -85,6 +86,8 @@ inclusion = parallel::mclapply(
 
     df = data.frame(X[location_indices, ])
     df$y = y
+    in_sample_df = df[which(location_indices > n_leave_out_loc), ]
+    leave_out_df = df[which(location_indices <= n_leave_out_loc), ]
 
     μ_k = μ + σ / ξ * (block_size^ξ - 1)
     σ_k = σ * block_size^ξ
@@ -97,7 +100,7 @@ inclusion = parallel::mclapply(
     # Run R-INLA with the joint model
     joint_res = tryCatch(
       inla_bgev(
-        data = df,
+        data = in_sample_df,
         response_name = "y",
         diagonal = .1,
         covariate_names = covariate_names,
@@ -112,7 +115,7 @@ inclusion = parallel::mclapply(
         data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
         covariate_names = covariate_names,
         s_list = list(rep(joint_res$standardising_const, n_loc)),
-        verbose = FALSE,
+        verbose = verbose,
         fun = list(
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
@@ -147,6 +150,7 @@ inclusion = parallel::mclapply(
             upper = joint_stats[[name]]$`97.5%`,
             mean = joint_stats[[name]]$mean,
             score = joint_score,
+            in_sample = location_indices > n_leave_out_loc,
             n_σ = n_σ,
             model = "joint")
           res$err = res$value - res$mean
@@ -165,11 +169,32 @@ inclusion = parallel::mclapply(
       }
     )
 
+    # Data used for modelling the SD at all observation locations
+    sd_df = data.frame(X[-seq_len(n_leave_out_loc), ]) %>%
+      dplyr::mutate(log_sd = log(s_est[-seq_len(n_leave_out_loc)]))
+
+    # Estimate s^*
+    sd_inla_args = inla_default_args("gaussian")
+    sd_inla_args$formula = as.formula(
+      paste("log_sd ~ -1 + intercept +", paste(covariate_names[[2]], collapse = " + ")))
+    sd_inla_args$data = sd_df
+    sd_res = do.call(inla, sd_inla_args)
+
+    log_sd_samples = INLA::inla.posterior.sample(1000, sd_res, seed = 1)
+    log_sd_stats = inla_stats(
+      sample_list = list(log_sd_samples),
+      data = as.data.frame(X),
+      covariate_names = covariate_names[[2]],
+      verbose = verbose,
+      fun = function(pars) exp(rnorm(length(pars$μ), pars$μ, 1 / sqrt(pars$τ))),
+      family = "gaussian")
+    sd_samples = log_sd_stats$fun$mean
+
     twostep_res = tryCatch(
       inla_bgev(
-        data = df,
+        data = in_sample_df,
         response_name = "y",
-        s_est = s_est[location_indices],
+        s_est = sd_samples[location_indices][location_indices > n_leave_out_loc],
         diagonal = .1,
         covariate_names =  covariate_names,
         α = α,
@@ -182,8 +207,8 @@ inclusion = parallel::mclapply(
         sample_list = list(twostep_samples),
         data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
         covariate_names = covariate_names,
-        s_list = list(s_est * twostep_res$standardising_const),
-        verbose = FALSE,
+        s_list = list(sd_samples * twostep_res$standardising_const),
+        verbose = verbose,
         fun = list(
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
@@ -193,7 +218,7 @@ inclusion = parallel::mclapply(
         samples = twostep_samples,
         data = df,
         covariate_names = covariate_names,
-        s_est = s_est * twostep_res$standardising_const)
+        s_est = sd_samples * twostep_res$standardising_const)
       twostep_score = vector("numeric", n)
       for (j in seq_len(n_loc)) {
         obs = y[which(location_indices == j)]
@@ -217,6 +242,7 @@ inclusion = parallel::mclapply(
             lower = twostep_stats[[name]]$`2.5%`,
             upper = twostep_stats[[name]]$`97.5%`,
             mean = twostep_stats[[name]]$mean,
+            in_sample = location_indices > n_leave_out_loc,
             score = twostep_score,
             n_σ = n_σ,
             model = "twostep")
@@ -240,29 +266,48 @@ inclusion = parallel::mclapply(
   })
 inclusion = do.call(rbind, inclusion)
 
-message("Joint StwCRPS:")
-print(summary(dplyr::filter(inclusion, model == "joint")$score))
-message("Twostep StwCRPS:")
-print(summary(dplyr::filter(inclusion, model == "twostep")$score))
+saveRDS(inclusion, file.path(here::here(), "inst", "extdata", "simulation2.rds"))
+
+score_stats = inclusion %>%
+  dplyr::group_by(model, i, in_sample) %>%
+  dplyr::summarise(score = mean(score), n_σ = unique(n_σ)) %>%
+  tidyr::pivot_wider(values_from = score, names_from = model) %>%
+  dplyr::mutate(diff = joint - twostep, n_σ = factor(n_σ))
+
+score_stats$diff %>% summary()
+score_stats$twostep %>% summary()
+score_stats$joint %>% summary()
+
+ggplot(score_stats) +
+  geom_point(aes(x = i, y = diff, col = n_σ))
+
+message("Joint StwCRPS in-sample:")
+print(summary(dplyr::filter(inclusion, model == "joint", in_sample)$score))
+message("Twostep StwCRPS in-sample:")
+print(summary(dplyr::filter(inclusion, model == "twostep", in_sample)$score))
+message("Joint StwCRPS out-of-sample:")
+print(summary(dplyr::filter(inclusion, model == "joint", !in_sample)$score))
+message("Twostep StwCRPS out-of-sample:")
+print(summary(dplyr::filter(inclusion, model == "twostep", !in_sample)$score))
 
 percentages = inclusion %>%
-  dplyr::group_by(name, n_σ, model) %>%
+  dplyr::group_by(name, n_σ, model, in_sample) %>%
   dplyr::mutate(percentage = mean(included)) %>%
-  dplyr::select(name, n_σ, model, percentage) %>%
+  dplyr::select(name, n_σ, model, percentage, in_sample) %>%
   dplyr::slice(1)
 
 ggplot(percentages) +
   geom_col(aes(x = name, y = percentage, fill = model), position = "dodge") +
-  facet_wrap(~n_σ) +
+  facet_wrap(~n_σ + in_sample) +
   geom_hline(yintercept = .95)
 
 message("joint inclusion stats")
 dplyr::filter(inclusion, model == "joint") %>%
-  .[, 1:6] %>%
-  apply(2, mean)
+  dplyr::group_by(in_sample, name) %>%
+  dplyr::summarise(percentage = mean(included)) %>%
+  print()
 message("twostep inclusion stats")
 dplyr::filter(inclusion, model == "twostep") %>%
-  .[, 1:6] %>%
-  apply(2, mean)
-
-saveRDS(inclusion, file.path(here::here(), "inst", "extdata", "simulation2.rds"))
+  dplyr::group_by(in_sample, name) %>%
+  dplyr::summarise(percentage = mean(included)) %>%
+  print()
