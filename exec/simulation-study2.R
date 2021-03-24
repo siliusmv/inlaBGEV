@@ -15,7 +15,7 @@ get_return_level_function = function(period) {
 }
 
 
-n = 2000 # Number of samples
+n = 1000 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
 n_leave_out_loc = 50
 α = .5; β = .8 # Probabilities used in the location and spread parameters
@@ -158,7 +158,7 @@ inclusion = parallel::mclapply(
       seq_len(n_loc),
       function(i) {
         obs = as.numeric(x[, which(location_indices == i)])
-        sd(obs[obs >= quantile(obs, .8)])
+        sd(obs[obs >= quantile(obs, .9)])
       }
     )
 
@@ -239,6 +239,7 @@ inclusion = parallel::mclapply(
             lower = twostep_stats[[name]]$`2.5%`,
             upper = twostep_stats[[name]]$`97.5%`,
             mean = twostep_stats[[name]]$mean,
+            time = twostep_time,
             in_sample = location_indices > n_leave_out_loc,
             score = twostep_score,
             n_σ = n_σ,
