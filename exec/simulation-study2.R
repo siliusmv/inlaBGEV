@@ -15,7 +15,7 @@ get_return_level_function = function(period) {
 }
 
 
-n = 1000 # Number of samples
+n = 1500 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
 n_leave_out_loc = 50
 α = .5; β = .8 # Probabilities used in the location and spread parameters
@@ -25,13 +25,17 @@ num_cores = 25
 verbose = FALSE
 
 set.seed(1, kind = "L'Ecuyer-CMRG")
-inclusion = parallel::mclapply(
+res = parallel::mclapply(
   X = seq_len(n_trials),
   mc.cores = num_cores,
   mc.preschedule = FALSE,
   FUN = function(i) {
 
-    inclusion = list()
+    res = list(
+      inclusion = list(),
+      score = list(),
+      time = list())
+
     μ = rep(0, n_loc)
     n_σ = sample.int(4, 1)
     σ_coeffs = c(runif(1, 1, 3), rnorm(n_σ, 0, .2)) / 10
@@ -118,16 +122,17 @@ inclusion = parallel::mclapply(
         data = df,
         covariate_names = covariate_names,
         s_est = rep(joint_res$standardising_const, n_loc))
-      joint_score = vector("numeric", n)
-      for (j in seq_len(n_loc)) {
+      joint_score = list()
+      for (j in seq_len(n_leave_out_loc)) {
         obs = y[which(location_indices == j)]
         par = locspread_to_locscale(joint_pars$q[j, ], joint_pars$s[j, ],
                                     joint_pars$ξ[j, ], α, β)
         if (verbose) message(j)
-        joint_score[which(location_indices == j)] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        joint_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
       }
+      joint_score = unlist(joint_score)
 
-      inclusion$joint = lapply(
+      res$inclusion$joint = lapply(
         c("q", "s", "ξ", "r10", "r25", "r50"),
         function(name) {
           if (name %in% c("q", "s")) {
@@ -141,8 +146,6 @@ inclusion = parallel::mclapply(
             lower = joint_stats[[name]]$`2.5%`,
             upper = joint_stats[[name]]$`97.5%`,
             mean = joint_stats[[name]]$mean,
-            time = joint_time,
-            score = joint_score,
             in_sample = location_indices > n_leave_out_loc,
             n_σ = n_σ,
             model = "joint")
@@ -151,6 +154,16 @@ inclusion = parallel::mclapply(
           res
         }) %>%
         do.call(rbind, .)
+
+      res$score$joint = data.frame(
+        score = joint_score,
+        model = "joint",
+        n_σ = n_σ)
+
+      res$time$joint = data.frame(
+        time = joint_time,
+        model = "joint",
+        n_σ = n_σ)
     }
 
     # Run R-inla with the two-step model
@@ -158,7 +171,7 @@ inclusion = parallel::mclapply(
       seq_len(n_loc),
       function(i) {
         obs = as.numeric(x[, which(location_indices == i)])
-        sd(obs[obs >= quantile(obs, .9)])
+        sd(obs[obs >= quantile(obs, .99)])
       }
     )
 
@@ -216,16 +229,17 @@ inclusion = parallel::mclapply(
         data = df,
         covariate_names = covariate_names,
         s_est = sd_samples * twostep_res$standardising_const)
-      twostep_score = vector("numeric", n)
-      for (j in seq_len(n_loc)) {
+      twostep_score = list()
+      for (j in seq_len(n_leave_out_loc)) {
         obs = y[which(location_indices == j)]
         par = locspread_to_locscale(twostep_pars$q[j, ], twostep_pars$s[j, ],
                                     twostep_pars$ξ[j, ], α, β)
         if (verbose) message(j)
-        twostep_score[which(location_indices == j)] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        twostep_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
       }
+      twostep_score = unlist(twostep_score)
 
-      inclusion$twostep = lapply(
+      res$inclusion$twostep = lapply(
         c("q", "s", "ξ", "r10", "r25", "r50"),
         function(name) {
           if (name %in% c("q", "s")) {
@@ -239,9 +253,7 @@ inclusion = parallel::mclapply(
             lower = twostep_stats[[name]]$`2.5%`,
             upper = twostep_stats[[name]]$`97.5%`,
             mean = twostep_stats[[name]]$mean,
-            time = twostep_time,
             in_sample = location_indices > n_leave_out_loc,
-            score = twostep_score,
             n_σ = n_σ,
             model = "twostep")
           res$err = res$value - res$mean
@@ -249,6 +261,16 @@ inclusion = parallel::mclapply(
           res
         }) %>%
         do.call(rbind, .)
+
+      res$score$twostep = data.frame(
+        score = twostep_score,
+        model = "twostep",
+        n_σ = n_σ)
+
+      res$time$twostep = data.frame(
+        time = twostep_time,
+        model = "twostep",
+        n_σ = n_σ)
     }
 
     message("Done with iter nr. ", i)
@@ -257,17 +279,23 @@ inclusion = parallel::mclapply(
     #message("joint stats:")
     #print(apply(inclusion$joint[, 1:6], 2, mean))
 
-    inclusion = rbind(inclusion[[1]], inclusion[[2]])
-    inclusion$i = i
+    for (n in names(res)) {
+      res[[n]] = do.call(rbind, res[[n]])
+      res[[n]]$i = i
+    }
 
-    inclusion
+    res
   })
-inclusion = do.call(rbind, inclusion)
+tmp = list()
+for (n in names(res[[1]])) {
+  tmp[[n]] = do.call(rbind, lapply(res, function(x) x[[n]]))
+}
+res = tmp
 
-saveRDS(inclusion, file.path(here::here(), "inst", "extdata", "simulation2.rds"))
+saveRDS(res, file.path(here::here(), "inst", "extdata", "simulation2.rds"))
 
-score_stats = inclusion %>%
-  dplyr::group_by(model, i, in_sample) %>%
+score_stats = res$score %>%
+  dplyr::group_by(model, i) %>%
   dplyr::summarise(score = mean(score), n_σ = unique(n_σ)) %>%
   tidyr::pivot_wider(values_from = score, names_from = model) %>%
   dplyr::mutate(diff = joint - twostep, n_σ = factor(n_σ))
@@ -279,16 +307,19 @@ score_stats$joint %>% summary()
 ggplot(score_stats) +
   geom_point(aes(x = i, y = diff, col = n_σ))
 
-message("Joint StwCRPS in-sample:")
-print(summary(dplyr::filter(inclusion, model == "joint", in_sample)$score))
-message("Twostep StwCRPS in-sample:")
-print(summary(dplyr::filter(inclusion, model == "twostep", in_sample)$score))
-message("Joint StwCRPS out-of-sample:")
-print(summary(dplyr::filter(inclusion, model == "joint", !in_sample)$score))
-message("Twostep StwCRPS out-of-sample:")
-print(summary(dplyr::filter(inclusion, model == "twostep", !in_sample)$score))
+time_stats = res$time %>%
+  dplyr::group_by(model) %>%
+  dplyr::summarise(mean_time = mean(time),
+                   lower_time = quantile(time, .1),
+                   upper_time = quantile(time, .9))
+print(time_stats)
 
-percentages = inclusion %>%
+message("Joint StwCRPS :")
+print(summary(dplyr::filter(res$score, model == "joint")$score))
+message("Twostep StwCRPS :")
+print(summary(dplyr::filter(res$score, model == "twostep")$score))
+
+percentages = res$inclusion %>%
   dplyr::group_by(name, n_σ, model, in_sample) %>%
   dplyr::mutate(percentage = mean(included)) %>%
   dplyr::select(name, n_σ, model, percentage, in_sample) %>%
@@ -300,12 +331,12 @@ ggplot(percentages) +
   geom_hline(yintercept = .95)
 
 message("joint inclusion stats")
-dplyr::filter(inclusion, model == "joint") %>%
+dplyr::filter(res$inclusion, model == "joint") %>%
   dplyr::group_by(in_sample, name) %>%
   dplyr::summarise(percentage = mean(included)) %>%
   print()
 message("twostep inclusion stats")
-dplyr::filter(inclusion, model == "twostep") %>%
+dplyr::filter(res$inclusion, model == "twostep") %>%
   dplyr::group_by(in_sample, name) %>%
   dplyr::summarise(percentage = mean(included)) %>%
   print()
