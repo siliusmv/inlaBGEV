@@ -171,13 +171,14 @@ res = parallel::mclapply(
       seq_len(n_loc),
       function(i) {
         obs = as.numeric(x[, which(location_indices == i)])
-        sd(obs[obs >= quantile(obs, .99)])
+        sd(obs[obs >= quantile(obs, .8)])
       }
     )
 
     # Data used for modelling the SD at all observation locations
-    sd_df = data.frame(X[-seq_len(n_leave_out_loc), ]) %>%
-      dplyr::mutate(log_sd = log(s_est[-seq_len(n_leave_out_loc)]))
+    sd_df = as.data.frame(X) %>%
+      dplyr::mutate(log_sd = log(s_est))
+    sd_df$log_sd[seq_len(n_leave_out_loc)] = NA
 
     # Estimate s^*
     sd_inla_args = inla_default_args("gaussian")
@@ -186,18 +187,9 @@ res = parallel::mclapply(
     sd_inla_args$data = sd_df
 
     twostep_time = proc.time()
-    sd_res = do.call(inla, sd_inla_args)
-
-    log_sd_samples = INLA::inla.posterior.sample(1000, sd_res, seed = 1)
-    log_sd_stats = inla_stats(
-      sample_list = list(log_sd_samples),
-      data = as.data.frame(X),
-      covariate_names = covariate_names[[2]],
-      verbose = verbose,
-      fun = function(pars) exp(rnorm(length(pars$μ), pars$μ, 1 / sqrt(pars$τ))),
-      family = "gaussian")
-    sd_samples = log_sd_stats$fun$mean
-
+    #sd_res = do.call(inla, sd_inla_args)
+    #sd_samples = exp(sd_res$summary.linear.predictor$mean)
+    sd_samples = s_est
     twostep_res = tryCatch(
       inla_bgev(
         data = in_sample_df,
@@ -300,8 +292,11 @@ score_stats = res$score %>%
   tidyr::pivot_wider(values_from = score, names_from = model) %>%
   dplyr::mutate(diff = joint - twostep, n_σ = factor(n_σ))
 
+message("diff")
 score_stats$diff %>% summary()
+message("twostep StwCRPS")
 score_stats$twostep %>% summary()
+message("joint StwCRPS")
 score_stats$joint %>% summary()
 
 ggplot(score_stats) +
