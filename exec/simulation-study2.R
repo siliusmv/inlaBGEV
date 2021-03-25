@@ -15,7 +15,7 @@ get_return_level_function = function(period) {
 }
 
 
-n = 1500 # Number of samples
+n = 500 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
 n_leave_out_loc = 50
 α = .5; β = .8 # Probabilities used in the location and spread parameters
@@ -273,18 +273,23 @@ res = parallel::mclapply(
 
     for (n in names(res)) {
       res[[n]] = do.call(rbind, res[[n]])
+      if (!is.null(res[[n]])) res[[n]]$i = i
       res[[n]]$i = i
     }
 
     res
   })
+
+
+saveRDS(res, file.path(here::here(), "inst", "extdata", "simulation2.rds"))
+
 tmp = list()
 for (n in names(res[[1]])) {
-  tmp[[n]] = do.call(rbind, lapply(res, function(x) x[[n]]))
+  good_runs = sapply(res, function(x) !is.null(x[[n]]))
+  tmp[[n]] = do.call(rbind, lapply(res[good_runs], function(x) x[[n]]))
 }
 res = tmp
 
-saveRDS(res, file.path(here::here(), "inst", "extdata", "simulation2.rds"))
 
 score_stats = res$score %>%
   dplyr::group_by(model, i) %>%

@@ -303,18 +303,21 @@ res = parallel::mclapply(
 
     for (n in names(res)) {
       res[[n]] = do.call(rbind, res[[n]])
-      res[[n]]$i = i
+      if (!is.null(res[[n]])) res[[n]]$i = i
     }
 
     res
   })
-tmp = list()
-for (n in names(res[[1]])) {
-  tmp[[n]] = do.call(rbind, lapply(res, function(x) x[[n]]))
-}
-res = tmp
 
 saveRDS(res, file.path(here::here(), "inst", "extdata", "simulation3.rds"))
+
+
+tmp = list()
+for (n in names(res[[1]])) {
+  good_runs = sapply(res, function(x) !is.null(x[[n]]))
+  tmp[[n]] = do.call(rbind, lapply(res[good_runs], function(x) x[[n]]))
+}
+res = tmp
 
 score_stats = res$score %>%
   dplyr::group_by(model, i) %>%
