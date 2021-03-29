@@ -76,7 +76,8 @@ tikz_plot = function(file, plot = NULL, expression = NULL, view = FALSE, ...) {
   dev.off()
 
   # Compile to pdf
-  system2("pdflatex", tmp)
+  #system2("pdflatex", tmp)
+  system2("lualatex", tmp)
 
   # Copy pdf file to final destination
   file.copy(paste0(tmp, ".pdf"), file, overwrite = TRUE)

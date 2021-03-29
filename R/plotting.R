@@ -2,16 +2,23 @@
 plot_stats = function(x, grid = TRUE,
                       upper = .975, lower = .025,
                       breaks = NULL, CI_breaks = NULL,
-                      use_tex = FALSE,
+                      use_tex = FALSE, axis_text = TRUE,
+                      add_stations = FALSE,
                       ...) {
   x$CI = x[[paste0(as.character(upper * 100), "%")]] - x[[paste0(as.character(lower * 100), "%")]]
   if (grid) {
-    gg1 = plot_grid(x, "mean", breaks, use_tex = use_tex, ...)
-    gg2 = plot_grid(x, "CI", CI_breaks, use_tex = use_tex, ...)
+    gg1 = plot_grid(x, "mean", breaks, use_tex = use_tex)
+    gg2 = plot_grid(x, "CI", CI_breaks, use_tex = use_tex)
   } else {
-    gg1 = plot_on_map(x, "mean", breaks, use_tex = use_tex, ...)
-    gg2 = plot_on_map(x, "CI", CI_breaks, use_tex = use_tex, ...)
+    gg1 = plot_on_map(x, "mean", breaks, use_tex = use_tex)
+    gg2 = plot_on_map(x, "CI", CI_breaks, use_tex = use_tex)
   }
+  if (add_stations) {
+    gg2 = gg2 +
+      geom_sf(data = dplyr::distinct(observations, id), col = "red", size = .01, alpha = .5)
+  }
+  gg1 = style_map_plot(gg1, data, use_tex, ...)
+  gg2 = style_map_plot(gg2, data, use_tex, ...)
   gg1 = gg1 + labs(fill = "Posterior mean")
   if (use_tex) {
     gg2 = gg2 +
@@ -20,11 +27,24 @@ plot_stats = function(x, grid = TRUE,
     gg2 = gg2 +
       labs(fill = paste0("Posterior ", as.character((upper - lower) * 100), "%\nCI width"))
   }
+  if (!axis_text) {
+    gg1 = gg1 + theme(axis.text = element_blank(), axis.ticks = element_blank())
+    gg2 = gg2 + theme(axis.text = element_blank(), axis.ticks = element_blank())
+  }
   gg1 + gg2
 }
 
+style_map_plot = function(plot, data, use_tex, ...) {
+   plot = plot +
+    add_norway_map(sf::st_crs(data), sf::st_bbox(data), ...) +
+    theme_light() +
+    labs(x = "", y = "")
+  if (use_tex) plot = latex_friendly_map_plot(plot)
+   plot
+}
+
 #' @export
-plot_grid = function(data, response_name, breaks = NULL, use_tex = FALSE, ...) {
+plot_grid = function(data, response_name, breaks = NULL, use_tex = FALSE) {
   coords = as.data.frame(sf::st_coordinates(data))
   data$x = coords$X
   data$y = coords$Y
@@ -32,17 +52,13 @@ plot_grid = function(data, response_name, breaks = NULL, use_tex = FALSE, ...) {
     data[[response_name]] = get_binned_data(data[[response_name]], breaks, use_tex = use_tex)
   }
   gg = ggplot(data) +
-    theme_light() +
-    geom_raster(aes_string(x = "x", y = "y", fill = response_name)) +
-    add_norway_map(sf::st_crs(data), sf::st_bbox(data), ...) +
-    labs(x = "", y = "")
+    geom_raster(aes_string(x = "x", y = "y", fill = response_name))
   gg = add_scico_fill(gg, binned = !is.null(breaks))
-  if (use_tex) gg = latex_friendly_map_plot(gg)
   gg
 }
 
 #' @export
-plot_on_map = function(data, response_name = NULL, breaks = NULL, use_tex = FALSE, ...) {
+plot_on_map = function(data, response_name = NULL, breaks = NULL, use_tex = FALSE) {
   #coords = as.data.frame(sf::st_coordinates(data))
   #data$x = coords$X
   #data$y = coords$Y
@@ -54,13 +70,7 @@ plot_on_map = function(data, response_name = NULL, breaks = NULL, use_tex = FALS
   } else {
     gg = ggplot(data) + geom_sf(aes_string(col = response_name))
   }
-  gg = gg +
-    #geom_point(aes_string(x = "x", y = "y", col = response_name)) +
-    add_norway_map(st_crs(data), st_bbox(data), ...) +
-    scale_color_viridis_c() +
-    theme_light() +
-    labs(x = "", y = "")
-  if (use_tex) gg = latex_friendly_map_plot(gg)
+  gg = gg + scale_color_viridis_c()
   gg
 }
 

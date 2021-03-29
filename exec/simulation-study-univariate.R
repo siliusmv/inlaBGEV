@@ -7,7 +7,7 @@ library(parallel)
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 n_vec = c(50, 100, 500, 1000, 2000)
 n_trials = 2000
-num_cores = 20
+num_cores = 25
 return_periods = c(5, 10, 25, 50)
 
 set.seed(1, kind = "L'Ecuyer-CMRG") # Set a seed that works for paralellisation
@@ -52,22 +52,24 @@ stats = parallel::mclapply(
         mean_vals = c(mean_vals, mean(est_return_levels[j, ]))
         mse = c(mse, mean((est_return_levels[j, ] - return_levels[j])^2))
       }
-      stwcrps = mean(stwcrps_bgev(y, μ_s, σ_s, ξ_s, .9))
-      stwcrps_true = mean(stwcrps_bgev(y, μ, σ, ξ, .9))
+      #stwcrps = mean(stwcrps_bgev(y, μ_s, σ_s, ξ_s, .9))
+      stwcrps = expected_twcrps_bgev(μ_s, σ_s, ξ_s, .9, μ_true = μ, σ_true = σ, ξ_true = ξ)
+      #stwcrps_true = mean(stwcrps_bgev(y, μ, σ, ξ, .9))
       stats[[n]] = data.frame(
         par = pars,
         val = values,
-        inside = is_inside,
+        is_inside = is_inside,
         n = n, i = i,
         lower = lower,
         mean = mean_vals,
         mse = mse,
-        stwcrps = mean(stwcrps),
-        stwcrps_true = mean(stwcrps_true),
+        stwcrps = stwcrps,
+        #stwcrps_true = mean(stwcrps_true),
         upper = upper,
         CI_width = upper - lower)
     }
     stats = do.call(rbind, stats)
+    message("Done with iter ", i, " out of ", n_trials)
     stats
   })
 
@@ -75,29 +77,42 @@ saveRDS(
   stats,
   file.path(here::here(), "inst", "extdata", "simulation-study-univariate.rds"))
 
-#  inclusion = inclusion[!sapply(inclusion, is.null)]
-#  inclusion = do.call(rbind, inclusion)
-#  inclusion_percentages[[i]] = lapply(
-#    X = seq_along(unique(inclusion$par)),
-#    FUN = function(i) {
-#      par = unique(inclusion$par)[i]
-#      df = dplyr::filter(inclusion, par == !!par)
-#      data.frame(par = par, n = inclusion$n[1],
-#                 inclusion_percentage = mean(df$inside),
-#                 CI_width = mean(df$CI_width),
-#                 stwcrps = mean(df$stwcrps),
-#                 stwcrps_true = mean(df$stwcrps_true),
-#                 err = mean(df$err^2))
-#
-#      
-#
-#    }
-#  }
-#)
-#
-#
-#    
-#
+
+stats %>%
+  do.call(rbind, .) %>%
+  dplyr::group_by(par, n) %>%
+  dplyr::summarise(inclusion_percentage = mean(is_inside)) %>%
+  ggplot() +
+  geom_col(aes(x = as.numeric(factor(n)), y = inclusion_percentage, fill = factor(n))) +
+  facet_wrap(~par) +
+  geom_hline(yintercept = .95) +
+  labs(fill = "n")
+
+stats %>%
+  do.call(rbind, .) %>%
+  ggplot() +
+  #geom_point(aes(x = as.numeric(factor(n)), y = mse, col = factor(n))) +
+  geom_jitter(aes(x = as.numeric(factor(n)), y = mse, col = factor(n)), height = 0, width = .1) +
+  facet_wrap(~par, scales = "free_y") +
+  labs(col = "n")
+
+
+stats %>%
+  do.call(rbind, .) %>%
+  #ggplot() +
+  #geom_boxplot(aes(x = as.numeric(factor(n)), y = stwcrps, fill = factor(n))) +
+  #facet_wrap(~par, scales = "free_y") +
+  #labs(fill = "n")
+  dplyr::group_by(par, n) %>%
+  dplyr::summarise(mean = mean(stwcrps),
+                   upper = quantile(stwcrps, .95),
+                   lower = quantile(stwcrps, .05)) %>%
+  ggplot() +
+  geom_point(aes(x = n, y = mean)) +
+  geom_ribbon(aes(x = n, ymin = lower, ymax = upper), alpha = .3) +
+  facet_wrap(~par)
+
+
 #stop("You should do this the other way, so we use the same q, s, ξ for all values of n. Then we can actually see that the error goes down as n increases!!!")
 #inclusion_percentages = list()
 #for (i in seq_along(n_vec)) {
