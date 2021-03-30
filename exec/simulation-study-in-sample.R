@@ -94,12 +94,15 @@ res = parallel::mclapply(
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
           r50 = get_return_level_function(50)))
-
       joint_pars = inla_bgev_pars(
         samples = joint_samples,
         data = df,
         covariate_names = covariate_names,
-        s_est = rep(joint_res$standardising_const, n_loc))
+        s_est = rep(joint_res$standardising_const, n_loc),
+        fun = list(
+          r10 = get_return_level_function(10),
+          r25 = get_return_level_function(25),
+          r50 = get_return_level_function(50)))
       joint_score = list()
       joint_etwcrps = vector("numeric", n_loc)
       joint_estwcrps = vector("numeric", n_loc)
@@ -186,7 +189,11 @@ res = parallel::mclapply(
         samples = twostep_samples,
         data = df,
         covariate_names = covariate_names,
-        s_est = s_est * twostep_res$standardising_const)
+        s_est = s_est * twostep_res$standardising_const,
+        fun = list(
+          r10 = get_return_level_function(10),
+          r25 = get_return_level_function(25),
+          r50 = get_return_level_function(50)))
       twostep_score = list()
       twostep_etwcrps = vector("numeric", n_loc)
       twostep_estwcrps = vector("numeric", n_loc)
@@ -286,6 +293,11 @@ time_stats = res$time %>%
                    upper_time = quantile(time, .9))
 print(time_stats)
 # The two-step method is slightly faster
+
+mse = res$inclusion %>%
+  dplyr::group_by(name, model) %>%
+  dplyr::summarise(mse = mean(mse, na.rm = TRUE))
+print(mse)
 
 percentages = res$inclusion %>%
   dplyr::group_by(name, n_σ, model) %>%

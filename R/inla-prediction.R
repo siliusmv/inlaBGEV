@@ -8,8 +8,7 @@ inla_stats = function(sample_list,
                       verbose = TRUE,
                       fun = NULL,
                       quantiles = c(.025, .25, .5, .75, .975),
-                      family = c("bgev", "gaussian"),
-                      ...) {
+                      family = c("bgev", "gaussian")) {
   # Divide the data into batches. This is necessary if you use a laptop with "finite" RAM
   batch_index = floor(seq(0, nrow(data), length.out = n_batches + 1))
   stats = vector("list", n_batches)
@@ -31,6 +30,7 @@ inla_stats = function(sample_list,
         samples = sample_list[[i]],
         data = mydata,
         covariate_names = covariate_names,
+        fun = fun,
         s_est = s_list[[i]][rows],
         mesh = mesh,
         coords = mycoords)
@@ -39,20 +39,11 @@ inla_stats = function(sample_list,
           samples = sample_list[[i]],
           data = mydata,
           covariate_names = covariate_names,
+          fun = fun,
           mesh = mesh,
           coords = mycoords)
       } else {
         stop("unknown family type")
-      }
-      # Compute some function of the sampled parameters, e.g. return level
-      if (!is.null(fun)) {
-        if (is.function(fun)) {
-          pars[[i]]$fun = matrix(fun(pars[[i]], ...), nrow = length(rows))
-        } else {
-          for (j in seq_along(fun)) {
-            pars[[i]][[names(fun)[j]]] = matrix(fun[[j]](pars[[i]], ...), nrow = length(rows))
-          }
-        }
       }
     }
     # Compute stats for the parameters and possibly the function values at all locations
@@ -109,8 +100,18 @@ inla_gaussian_pars = function(samples,
   #if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
   if (is_matern_field) μ = μ + inla_sample_matern_field(samples, mesh, coords)
 
-  list(μ = μ, τ = τ)
-  #list(intercept = μ_intercept, matern = matern, μ_no_intercept = μ_no_intercept)
+  pars = list(μ = μ, τ = τ)
+  # Compute some function of the sampled parameters, e.g. return level
+  if (!is.null(fun)) {
+    if (is.function(fun)) {
+      pars$fun = matrix(fun(pars), nrow = length(rows))
+    } else {
+      for (j in seq_along(fun)) {
+        pars[[names(fun)[j]]] = matrix(fun[[j]](pars), nrow = nrow(X))
+      }
+    }
+  }
+  pars
 }
 
 #' @export
@@ -118,6 +119,7 @@ inla_bgev_pars = function(samples,
                           data,
                           covariate_names,
                           s_est = NULL,
+                          fun = NULL,
                           mesh = NULL,
                           coords = NULL) {
 
@@ -153,8 +155,18 @@ inla_bgev_pars = function(samples,
     #matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
   }
 
-  list(q = q, s = s, ξ = ξ)
-  #list(q = q, s = s, ξ = ξ, matern = matern)
+  pars = list(q = q, s = s, ξ = ξ)
+  # Compute some function of the sampled parameters, e.g. return level
+  if (!is.null(fun)) {
+    if (is.function(fun)) {
+      pars$fun = matrix(fun(pars), nrow = length(rows))
+    } else {
+      for (j in seq_along(fun)) {
+        pars[[names(fun)[j]]] = matrix(fun[[j]](pars), nrow = nrow(X))
+      }
+    }
+  }
+  pars
 }
 
 inla_bgev_coeffs = function(samples, covariate_names) {
