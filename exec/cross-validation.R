@@ -267,7 +267,7 @@ for (i in seq_along(hour_vec)) {
   print(data_stats(unlist(stats[[i]]$out_of_sample_joint)))
 }
 
-saveRDS(stats, file.path(here::here(), "inst", "extdata", "cross-validation.rds"))
+saveRDS(stats, file.path(here::here(), "results", "cross-validation.rds"))
 
 # Print the final results
 q = c(.025, .25, .5, .75, .975, .99, 1)

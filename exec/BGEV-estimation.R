@@ -101,52 +101,66 @@ for (i in seq_along(hour_vec)) {
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
 
-saveRDS(stats, file.path(here::here(), "inst", "extdata", "return-level-stats.rds"))
+saveRDS(stats, file.path(here::here(), "results", "return-level-stats.rds"))
 
 # Plot the results ===================================================
 
 # Return levels =======================
-my_breaks = c(6, 10, 14, 18, 22, 26)
+my_breaks = c(16, 18, 20, 22, 24, 26)
+CI_breaks = c(2, 2.5, 3, 3.5, 4)
 p1 = stats[[1]]$fun %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
+             size = .3, axis_text = FALSE, add_stations = TRUE)
 p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation")
 
 my_breaks = seq(10, by = 6, length = 6)
+my_breaks = seq(25, by = 5, length = 6)
+CI_breaks = c(2, 3, 4, 5, 6)
 p2 = stats[[2]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
+             size = .3, axis_text = FALSE, add_stations = TRUE)
 p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation")
 
 my_breaks = seq(16, by = 10, length = 6)
+my_braks = seq(20, by = 10, length = 6)
+CI_breaks = c(4, 6, 8, 10, 12)
 p3 = stats[[3]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
+             size = .3, axis_text = FALSE, add_stations = TRUE)
 p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation")
 
 my_breaks = seq(20, by = 15, length = 6)
 p4 = stats[[4]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
+             size = .3, axis_text = FALSE, add_stations = TRUE)
 p4[[1]] = p4[[1]] + labs(title = "12 hour precipitatio")
 
 my_breaks = seq(30, by = 20, length = 6)
 p5 = stats[[5]]$f %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE, size = .3)
+  plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
+             size = .3, axis_text = FALSE, add_stations = TRUE)
 p5[[1]] = p5[[1]] + labs(title = "24 hour precipitatio")
 
 
-text_size = 8
-myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
-  theme(text = element_text(size = text_size))
+text_size = 12
+myplot = patchwork::wrap_plots(
+  p1 * theme(text = element_text(size = text_size)),
+  p2 * theme(text = element_text(size = text_size)),
+  p3 * theme(text = element_text(size = text_size)),
+  nrow = 3)
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "return-level-maps.pdf"),
+
+tikz_plot(file.path(here::here(), "results", "return-level-maps.pdf"),
           myplot, width = 7, height = 10, view = TRUE)
 
 # BGEV parameters ===========================
@@ -197,7 +211,7 @@ text_size = 8
 myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
   theme(text = element_text(size = text_size))
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "BGEV-parameter-maps.pdf"),
+tikz_plot(file.path(here::here(), "results", "BGEV-parameter-maps.pdf"),
           myplot, width = 7, height = 10, view = TRUE)
 
 

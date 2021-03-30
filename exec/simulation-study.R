@@ -145,5 +145,5 @@ plot = mydf %>%
 if (interactive()) print(plot)
 
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "simulation-study.pdf"),
+tikz_plot(file.path(here::here(), "results", "simulation-study.pdf"),
           plot, width = 10, height = 7, view = TRUE)

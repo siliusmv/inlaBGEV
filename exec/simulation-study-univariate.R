@@ -78,7 +78,7 @@ stats = parallel::mclapply(
 
 saveRDS(
   stats,
-  file.path(here::here(), "inst", "extdata", "simulation-study-univariate.rds"))
+  file.path(here::here(), "results", "simulation-study-univariate.rds"))
 
 
 stats %>%
@@ -126,12 +126,12 @@ stats %>%
 #  print(inclusion_percentages[[i]])
 #  saveRDS(
 #    inclusion_percentages,
-#    file.path(here::here(), "inst", "extdata", "simulation-study-univariate.rds"))
+#    file.path(here::here(), "results", "simulation-study-univariate.rds"))
 #}
 #
 #saveRDS(
 #  inclusion_percentages,
-#  file.path(here::here(), "inst", "extdata", "simulation-study-univariate.rds"))
+#  file.path(here::here(), "results", "simulation-study-univariate.rds"))
 #
 #inclusion_percentages %>%
 #  do.call(rbind, .) %>%

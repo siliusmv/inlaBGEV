@@ -97,7 +97,7 @@ plot = params %>%
         strip.text.y = element_text(angle = 0))
 if (interactive()) print(plot)
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters.pdf"),
+tikz_plot(file.path(here::here(), "results", "pwm_gev_parameters.pdf"),
           plot, width = 10, height = 7, view = TRUE)
 
 # Plot parameter estimates with covariates ==============================
@@ -145,7 +145,7 @@ s_plot1 = params %>%
         strip.text.y = element_text(angle = 0),
         axis.title.y = element_text(angle = 0, vjust = .5))
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_with_covariates.pdf"),
+tikz_plot(file.path(here::here(), "results", "pwm_gev_parameters_with_covariates.pdf"),
           list(q_plot1, s_plot1), width = 15, height = 11, view = TRUE)
 
 
@@ -217,7 +217,7 @@ plot2 = params2 %>%
         strip.text.y = element_text(angle = 0))
 if (interactive()) print(plot2)
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_twostep.pdf"),
+tikz_plot(file.path(here::here(), "results", "pwm_gev_parameters_twostep.pdf"),
           plot2, width = 10, height = 7, view = TRUE)
 
 # Plot parameter estimates with covariates ==============================
@@ -266,5 +266,5 @@ s_plot2 = params2 %>%
         axis.title.y = element_text(angle = 0, vjust = .5))
 
 tikz_plot(
-  file.path(here::here(), "inst", "extdata", "pwm_gev_parameters_twostep_with_covariates.pdf"),
+  file.path(here::here(), "results", "pwm_gev_parameters_twostep_with_covariates.pdf"),
   list(q_plot2, s_plot2), width = 15, height = 11, view = TRUE)

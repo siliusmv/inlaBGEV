@@ -242,7 +242,7 @@ res = parallel::mclapply(
   })
 
 
-saveRDS(res, file.path(here::here(), "inst", "extdata", "simulation-in-sample.rds"))
+saveRDS(res, file.path(here::here(), "results", "simulation-in-sample.rds"))
 
 tmp = list()
 for (n in names(res[[1]])) {

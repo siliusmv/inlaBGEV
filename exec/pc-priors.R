@@ -51,5 +51,5 @@ plot = df2 %>%
   theme_bw() +
   labs(x = "$\\xi$", y = "Density", linetype = "Distribution")
 
-tikz_plot(file.path(here::here(), "inst", "extdata", "pc-priors.pdf"),
+tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
           plot, width = 10, height = 7, view = TRUE)
