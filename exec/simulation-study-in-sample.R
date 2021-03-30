@@ -59,13 +59,14 @@ res = parallel::mclapply(
     df = data.frame(X[location_indices, ])
     df$y = y
 
-    μ_k = μ + σ / ξ * (block_size^ξ - 1)
-    σ_k = σ * block_size^ξ
-    q_k = locscale_to_locspread(μ_k, σ_k, ξ, α, β)$q
-    s_k = locscale_to_locspread(μ_k, σ_k, ξ, α, β)$s
-    r10 = return_level_bgev(10, μ_k, σ_k, ξ)
-    r25 = return_level_bgev(25, μ_k, σ_k, ξ)
-    r50 = return_level_bgev(50, μ_k, σ_k, ξ)
+    truth = list(μ = μ + σ / ξ * (block_size^ξ - 1),
+                 σ = σ * block_size^ξ,
+                 ξ = ξ)
+    truth$q = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$q
+    truth$s = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$s
+    truth$r10 = return_level_bgev(10, truth$μ, truth$σ, ξ)
+    truth$r25 = return_level_bgev(25, truth$μ, truth$σ, ξ)
+    truth$r50 = return_level_bgev(50, truth$μ, truth$σ, ξ)
 
     # Run R-INLA with the joint model
     joint_time = proc.time()
@@ -100,33 +101,36 @@ res = parallel::mclapply(
         covariate_names = covariate_names,
         s_est = rep(joint_res$standardising_const, n_loc))
       joint_score = list()
+      joint_etwcrps = vector("numeric", n_loc)
+      joint_estwcrps = vector("numeric", n_loc)
       for (j in seq_len(n_loc)) {
         obs = y[which(location_indices == j)]
         par = locspread_to_locscale(joint_pars$q[j, ], joint_pars$s[j, ],
                                     joint_pars$ξ[j, ], α, β)
         if (verbose) message(j)
         joint_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        #etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
+        #                               μ_true = truth$μ, σ_true = truth$σ, ξ_true = ξ)
+        #joint_etwcrps[j] = etwcrps
+        #S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
+        #joint_estwcrps[j] = etwcrps / S + log(S)
       }
       joint_score = unlist(joint_score)
 
       res$inclusion$joint = lapply(
         c("q", "s", "ξ", "r10", "r25", "r50"),
         function(name) {
-          if (name %in% c("q", "s")) {
-            value_name = paste0(name, "_k")
-          } else {
-            value_name = name
-          }
           res = data.frame(
             name = name,
-            value = get(value_name),
+            value = truth[[name]],
             lower = joint_stats[[name]]$`2.5%`,
             upper = joint_stats[[name]]$`97.5%`,
             mean = joint_stats[[name]]$mean,
             n_σ = n_σ,
             model = "joint")
           res$err = res$value - res$mean
-          res$included = get(value_name) > res$lower & get(value_name) < res$upper
+          res$included = truth[[name]] > res$lower & truth[[name]] < res$upper
+          res$mse = mean((truth[[name]] - joint_pars[[name]])^2)
           res
         }) %>%
         do.call(rbind, .)
@@ -184,33 +188,36 @@ res = parallel::mclapply(
         covariate_names = covariate_names,
         s_est = s_est * twostep_res$standardising_const)
       twostep_score = list()
+      twostep_etwcrps = vector("numeric", n_loc)
+      twostep_estwcrps = vector("numeric", n_loc)
       for (j in seq_len(n_loc)) {
         obs = y[which(location_indices == j)]
         par = locspread_to_locscale(twostep_pars$q[j, ], twostep_pars$s[j, ],
                                     twostep_pars$ξ[j, ], α, β)
         if (verbose) message(j)
         twostep_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        #etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
+        #                               μ_true = truth$μ, σ_true = truth$σ, ξ_true = ξ)
+        #twostep_etwcrps[j] = etwcrps
+        #S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
+        #twostep_estwcrps[j] = etwcrps / S + log(S)
       }
       twostep_score = unlist(twostep_score)
 
       res$inclusion$twostep = lapply(
         c("q", "s", "ξ", "r10", "r25", "r50"),
         function(name) {
-          if (name %in% c("q", "s")) {
-            value_name = paste0(name, "_k")
-          } else {
-            value_name = name
-          }
           res = data.frame(
             name = name,
-            value = get(value_name),
+            value = truth[[name]],
             lower = twostep_stats[[name]]$`2.5%`,
             upper = twostep_stats[[name]]$`97.5%`,
             mean = twostep_stats[[name]]$mean,
             n_σ = n_σ,
             model = "twostep")
           res$err = res$value - res$mean
-          res$included = get(value_name) > res$lower & get(value_name) < res$upper
+          res$included = truth[[name]] > res$lower & truth[[name]] < res$upper
+          res$mse = mean((truth[[name]] - twostep_pars[[name]])^2)
           res
         }) %>%
         do.call(rbind, .)
@@ -241,7 +248,6 @@ res = parallel::mclapply(
     res
   })
 
-
 saveRDS(res, file.path(here::here(), "results", "simulation-in-sample.rds"))
 
 tmp = list()
@@ -264,6 +270,11 @@ message("twostep StwCRPS")
 score_stats$twostep %>% summary()
 message("joint StwCRPS")
 score_stats$joint %>% summary()
+# The twostep mean StwCRPS is always better!!
+# However, I should probably compute this exactly instead of using a finite numer of observations
+
+# This shows that we are able to use more information from the
+# standard deviation of large observations to improve prediction performance
 
 ggplot(score_stats) +
   geom_point(aes(x = i, y = diff, col = n_σ))
@@ -274,11 +285,7 @@ time_stats = res$time %>%
                    lower_time = quantile(time, .1),
                    upper_time = quantile(time, .9))
 print(time_stats)
-
-message("Joint StwCRPS :")
-print(summary(dplyr::filter(res$score, model == "joint")$score))
-message("Twostep StwCRPS :")
-print(summary(dplyr::filter(res$score, model == "twostep")$score))
+# The two-step method is slightly faster
 
 percentages = res$inclusion %>%
   dplyr::group_by(name, n_σ, model) %>%
@@ -288,8 +295,9 @@ percentages = res$inclusion %>%
 
 ggplot(percentages) +
   geom_col(aes(x = name, y = percentage, fill = model), position = "dodge") +
-  facet_wrap(~n_σ) +
   geom_hline(yintercept = .95)
+# The inclusion probabilities are a bit off, probably because we don't
+# propagate the uncertainty from s^*
 
 message("joint inclusion stats")
 dplyr::filter(res$inclusion, model == "joint") %>%
