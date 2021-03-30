@@ -53,7 +53,9 @@ stats = parallel::mclapply(
         mse = c(mse, mean((est_return_levels[j, ] - return_levels[j])^2))
       }
       #stwcrps = mean(stwcrps_bgev(y, μ_s, σ_s, ξ_s, .9))
-      stwcrps = expected_twcrps_bgev(μ_s, σ_s, ξ_s, .9, μ_true = μ, σ_true = σ, ξ_true = ξ)
+      twcrps = expected_twcrps_bgev(μ_s, σ_s, ξ_s, .9, μ_true = μ, σ_true = σ, ξ_true = ξ)
+      S = abs(expected_twcrps_bgev(μ_s, σ_s, ξ_s, .9))
+      stwcrps = twcrps / S + log(S)
       #stwcrps_true = mean(stwcrps_bgev(y, μ, σ, ξ, .9))
       stats[[n]] = data.frame(
         par = pars,
@@ -63,6 +65,7 @@ stats = parallel::mclapply(
         lower = lower,
         mean = mean_vals,
         mse = mse,
+        twcrps = twcrps,
         stwcrps = stwcrps,
         #stwcrps_true = mean(stwcrps_true),
         upper = upper,
@@ -87,6 +90,8 @@ stats %>%
   facet_wrap(~par) +
   geom_hline(yintercept = .95) +
   labs(fill = "n")
+# We care about the return periods, and we see that they get better and better!
+# We don't really care about the parameters!
 
 stats %>%
   do.call(rbind, .) %>%
@@ -95,22 +100,14 @@ stats %>%
   geom_jitter(aes(x = as.numeric(factor(n)), y = mse, col = factor(n)), height = 0, width = .1) +
   facet_wrap(~par, scales = "free_y") +
   labs(col = "n")
-
+# MSE goes down with n, which is great!
 
 stats %>%
   do.call(rbind, .) %>%
-  #ggplot() +
-  #geom_boxplot(aes(x = as.numeric(factor(n)), y = stwcrps, fill = factor(n))) +
-  #facet_wrap(~par, scales = "free_y") +
-  #labs(fill = "n")
-  dplyr::group_by(par, n) %>%
-  dplyr::summarise(mean = mean(stwcrps),
-                   upper = quantile(stwcrps, .95),
-                   lower = quantile(stwcrps, .05)) %>%
-  ggplot() +
-  geom_point(aes(x = n, y = mean)) +
-  geom_ribbon(aes(x = n, ymin = lower, ymax = upper), alpha = .3) +
-  facet_wrap(~par)
+  dplyr::group_by(n) %>%
+  dplyr::summarise(stwcrps = mean(stwcrps), twcrps = mean(twcrps))
+# I should probably have computed the expected stwcrps instead of this...
+# At least it goes down, it seems
 
 
 #stop("You should do this the other way, so we use the same q, s, ξ for all values of n. Then we can actually see that the error goes down as n increases!!!")
