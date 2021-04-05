@@ -15,17 +15,46 @@ inla_stats = function(sample_list,
   pb = get_progress_bar(n_batches)
   for (b in seq_len(n_batches)) {
     rows = (batch_index[b] + 1):batch_index[b + 1]
-    pars = list()
-    if (any(class(data) %in% c("sf", "sfc"))) {
-      mydata = sf::st_drop_geometry(data)[rows, ]
-      mycoords = sf::st_geometry(data)[rows, ]
-    } else {
-      mydata = data[rows, ]
-      mycoords = NULL
-    }
-    for (i in seq_along(sample_list)) {
-      # Compute posterior samples for the parameters at all locations
-      if (family[1] == "bgev") {
+    pars = inla_multiple_sample_pars(
+      sample_list = sample_list,
+      data = data,
+      covariate_names = covariate_names,
+      rows = rows,
+      s_list = s_list,
+      mesh = mesh,
+      fun = fun,
+      family = family)
+    stats[[b]] = compute_data_stats(pars, quantiles)
+    if (verbose) pb$tick()
+  }
+  pb$terminate()
+  # Some tidying of the data
+  stats = purrr::transpose(stats)
+  for (i in seq_along(stats)) stats[[i]] = do.call(rbind, stats[[i]])
+  stats$ξ = stats$ξ[1, ]
+  stats
+}
+
+#' @export
+inla_multiple_sample_pars = function(sample_list,
+                                     data,
+                                     covariate_names,
+                                     s_list = NULL,
+                                     mesh = NULL,
+                                     rows = seq_len(nrow(data)),
+                                     fun = NULL,
+                                     family = c("bgev", "gaussian")) {
+  pars = list()
+  if (any(class(data) %in% c("sf", "sfc"))) {
+    mydata = sf::st_drop_geometry(data)[rows, ]
+    mycoords = sf::st_geometry(data)[rows, ]
+  } else {
+    mydata = data[rows, ]
+    mycoords = NULL
+  }
+  for (i in seq_along(sample_list)) {
+    # Compute posterior samples for the parameters at all locations
+    if (family[1] == "bgev") {
       pars[[i]] = inla_bgev_pars(
         samples = sample_list[[i]],
         data = mydata,
@@ -34,45 +63,37 @@ inla_stats = function(sample_list,
         s_est = s_list[[i]][rows],
         mesh = mesh,
         coords = mycoords)
-      } else if (family[1] == "gaussian") {
-        pars[[i]] = inla_gaussian_pars(
-          samples = sample_list[[i]],
-          data = mydata,
-          covariate_names = covariate_names,
-          fun = fun,
-          mesh = mesh,
-          coords = mycoords)
-      } else {
-        stop("unknown family type")
-      }
+    } else if (family[1] == "gaussian") {
+      pars[[i]] = inla_gaussian_pars(
+        samples = sample_list[[i]],
+        data = mydata,
+        covariate_names = covariate_names,
+        fun = fun,
+        mesh = mesh,
+        coords = mycoords)
+    } else {
+      stop("unknown family type")
     }
-    # Compute stats for the parameters and possibly the function values at all locations
-    pars = purrr::transpose(pars)
-    for (i in seq_along(pars)) {
-      if (is.null(dim(pars[[i]][[1]]))) {
-        pars[[i]] = do.call(c, pars[[i]])
-      } else {
-        pars[[i]] = do.call(cbind, pars[[i]])
-      }
-    }
-    stats[[b]] = compute_data_stats(pars, quantiles)
-    if (verbose) pb$tick()
   }
-  pb$terminate()
-
-  # Some tidying of the data
-  stats = purrr::transpose(stats)
-  for (i in seq_along(stats)) stats[[i]] = do.call(rbind, stats[[i]])
-  stats$ξ = stats$ξ[1, ]
-
-  stats
+  # Compute stats for the parameters and possibly the function values at all locations
+  pars = purrr::transpose(pars)
+  for (i in seq_along(pars)) {
+    if (is.null(dim(pars[[i]][[1]]))) {
+      pars[[i]] = do.call(c, pars[[i]])
+    } else {
+      pars[[i]] = do.call(cbind, pars[[i]])
+    }
+  }
+  pars
 }
+
 
 #' @export
 inla_gaussian_pars = function(samples,
                               data,
                               covariate_names,
                               mesh = NULL,
+                              fun = NULL,
                               coords = NULL) {
 
   # Extract design matrix

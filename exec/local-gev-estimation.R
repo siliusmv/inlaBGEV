@@ -39,7 +39,7 @@ params = list()
 for (i in seq_along(hour_vec)) {
   # Prepare the data
   data = dplyr::filter(observations, n_hours == hour_vec[i], n_years >= min_years)
-  standardisation_stats = get_stats_for_standardisation(data, covariate_names)
+  standardisation_stats = get_mean_and_sd_stats(data, covariate_names)
   data = standardise(data, standardisation_stats)
 
   # Estimate parameters
@@ -155,7 +155,7 @@ params2 = list()
 for (i in seq_along(hour_vec)) {
   # Prepare the data
   data = dplyr::filter(observations, n_hours == hour_vec[i], n_years >= min_years)
-  standardisation_stats = get_stats_for_standardisation(data, covariate_names)
+  standardisation_stats = get_mean_and_sd_stats(data, covariate_names)
   data = standardise(data, standardisation_stats)
   sd_vals = dplyr::filter(estimated_sd, n_hours == hour_vec[i], n_years >= min_years)
   data = dplyr::left_join(data, sd_vals, by = c("id", "n_hours", "n_years"))

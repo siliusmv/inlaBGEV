@@ -54,44 +54,6 @@ twcrps_gev = function(y, μ, σ, ξ, p) {
 }
 
 #' @export
-stwcrps_gev = function(y, μ, σ, ξ, p, num_cores = 6) {
-  f = function(x, μ, σ, ξ, p) twcrps_gev(x, μ, σ, ξ, p) * dgev(x, μ, σ, ξ)
-  g_lower = function(u, ...) f(log(u), ...) / u
-  g_upper = function(u, ...) f(-log(u), ...) / u
-  one_stwcrps = function(y, μ, σ, ξ, p, p_a, p_b) {
-    expected_score = integrate(
-      function(u, ...) g_lower(u, ...) + g_upper(u, ...), lower = 0, upper = 1,
-      μ = μ, σ = σ, ξ = ξ, p = p)$value
-    twcrps_gev(y, μ, σ, ξ, p) / abs(expected_score) + log(abs(expected_score))
-  }
-  fix_lengths(μ, σ, ξ)
-  parallel::mcmapply(
-    FUN = function(y, ...) one_stwcrps(y, ...),
-    mc.cores = num_cores,
-    μ = μ, σ = σ, ξ = ξ,
-    MoreArgs = list(y = y, p = p))
-}
-
-twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
-  Fy = pgev(y, μ, σ, ξ)
-  Ei = function(x) {
-    res = rep(0, length(x))
-    res[x > -700] = gsl::expint_Ei(x[x > -700])
-    res
-  }
-  p1 = pmax(p, Fy)
-  if (ξ == 0) {
-    res = (y - μ) * (2 * p1 - p^2 - 1) + 2 * σ * p1 * log(-log(p1)) +
-      σ * (Ei(2 * log(p)) - 2 * Ei(log(p1)) - digamma(1) - log(2))
-    if (p > 0) res = res - σ * p^2 * log(-log(p))
-  } else {
-    res = (y - μ + σ / ξ) * (2 * p1 - p^2 - 1) - (σ / ξ) * gamma(1 - ξ) * (
-      2^ξ * pgamma(-2 * log(p), 1 - ξ) - 2 * pgamma(-log(p1), 1 - ξ))
-  }
-  res
-}
-
-#' @export
 locscale_to_locspread = function(μ, σ, ξ, α = .5, β = .8) {
   fix_lengths(μ, σ, ξ)
   s = σ * (ℓ(1 - β / 2, ξ) - ℓ(β / 2, ξ)) / ifelse(ξ == 0, 1, ξ)
@@ -110,3 +72,42 @@ locspread_to_locscale = function(q, s, ξ, α = .5, β = .8) {
 ℓ = function(x, ξ) {
   ifelse(ξ == 0, -log(-log(x)), (-log(x))^-ξ - 1)
 }
+
+# twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
+#   Fy = pgev(y, μ, σ, ξ)
+#   Ei = function(x) {
+#     res = rep(0, length(x))
+#     res[x > -700] = gsl::expint_Ei(x[x > -700])
+#     res
+#   }
+#   p1 = pmax(p, Fy)
+#   if (ξ == 0) {
+#     res = (y - μ) * (2 * p1 - p^2 - 1) + 2 * σ * p1 * log(-log(p1)) +
+#       σ * (Ei(2 * log(p)) - 2 * Ei(log(p1)) - digamma(1) - log(2))
+#     if (p > 0) res = res - σ * p^2 * log(-log(p))
+#   } else {
+#     res = (y - μ + σ / ξ) * (2 * p1 - p^2 - 1) - (σ / ξ) * gamma(1 - ξ) * (
+#       2^ξ * pgamma(-2 * log(p), 1 - ξ) - 2 * pgamma(-log(p1), 1 - ξ))
+#   }
+#   res
+# }
+# 
+# 
+# stwcrps_gev = function(y, μ, σ, ξ, p, num_cores = 6) {
+#   f = function(x, μ, σ, ξ, p) twcrps_gev(x, μ, σ, ξ, p) * dgev(x, μ, σ, ξ)
+#   g_lower = function(u, ...) f(log(u), ...) / u
+#   g_upper = function(u, ...) f(-log(u), ...) / u
+#   one_stwcrps = function(y, μ, σ, ξ, p, p_a, p_b) {
+#     expected_score = integrate(
+#       function(u, ...) g_lower(u, ...) + g_upper(u, ...), lower = 0, upper = 1,
+#       μ = μ, σ = σ, ξ = ξ, p = p)$value
+#     twcrps_gev(y, μ, σ, ξ, p) / abs(expected_score) + log(abs(expected_score))
+#   }
+#   fix_lengths(μ, σ, ξ)
+#   parallel::mcmapply(
+#     FUN = function(y, ...) one_stwcrps(y, ...),
+#     mc.cores = num_cores,
+#     μ = μ, σ = σ, ξ = ξ,
+#     MoreArgs = list(y = y, p = p))
+# }
+
