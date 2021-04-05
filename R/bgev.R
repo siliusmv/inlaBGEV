@@ -68,16 +68,16 @@ twcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2) {
   if (p >= p_b) {
     F = function(x) sapply(x, function(z) mean(pgev(z, μ, σ, ξ))) # use pgev for speed
   } else {
-    F = function(x) sapply(x, function(z) mean(pbgev(z, μ, σ, ξ)))
+    F = function(x) sapply(x, function(z) mean(pbgev(z, μ, σ, ξ, p_a, p_b)))
   }
-  quantiles = qbgev(p, μ, σ, ξ)
+  quantiles = qbgev(p, μ, σ, ξ, p_a, p_b)
   if (length(quantiles) == 1) {
     y_min = quantiles
   } else {
     y_min = uniroot(function(x) F(x) - p, lower = min(quantiles), upper = max(quantiles))$root
   }
   p_max = .999
-  y_max = max(qbgev(p_max, μ, σ, ξ), max(y) + 1)
+  y_max = max(qbgev(p_max, μ, σ, ξ, p_a, p_b), max(y) + 1)
   res = rep(0, length(y))
   for (i in seq_along(y)) {
     if (y[i] < y_min) {

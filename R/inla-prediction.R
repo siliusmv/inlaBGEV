@@ -125,7 +125,7 @@ inla_gaussian_pars = function(samples,
   # Compute some function of the sampled parameters, e.g. return level
   if (!is.null(fun)) {
     if (is.function(fun)) {
-      pars$fun = matrix(fun(pars), nrow = length(rows))
+      pars$fun = matrix(fun(pars), nrow = nrow(X))
     } else {
       for (j in seq_along(fun)) {
         pars[[names(fun)[j]]] = matrix(fun[[j]](pars), nrow = nrow(X))
@@ -180,7 +180,7 @@ inla_bgev_pars = function(samples,
   # Compute some function of the sampled parameters, e.g. return level
   if (!is.null(fun)) {
     if (is.function(fun)) {
-      pars$fun = matrix(fun(pars), nrow = length(rows))
+      pars$fun = matrix(fun(pars), nrow = nrow(X))
     } else {
       for (j in seq_along(fun)) {
         pars[[names(fun)[j]]] = matrix(fun[[j]](pars), nrow = nrow(X))
@@ -219,8 +219,8 @@ inla_sample_matern_field = function(samples, mesh, coords) {
   indx = which(contents$tag == "matern_field")
   if (length(indx) == 0) return(0)
   A = INLA::inla.spde.make.A(mesh, sf::st_coordinates(sf::st_transform(coords, get_proj_xy())))
-  length = contents$length[indx]
+  l = contents$length[indx]
   start = contents$start[indx]
-  matern_samples = sapply(samples, function(s) s$latent[start:(start + length - 1)])
+  matern_samples = sapply(samples, function(s) s$latent[start:(start + l - 1)])
   matrix((A %*% matern_samples)@x, nrow = nrow(A), ncol = ncol(matern_samples))
 }

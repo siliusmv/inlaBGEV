@@ -46,14 +46,6 @@ return_level_gev = function(period, μ, σ, ξ) {
 }
 
 #' @export
-twcrps_gev = function(y, μ, σ, ξ, p) {
-  if (p < 0 || p > 1) stop("p must be a probability between 0 and 1")
-  res = mapply(twcrps_gev_one_par, μ = μ, σ = σ, ξ = ξ, MoreArgs = list(y = y, p = p))
-  if (!is.null(dim(res)) && ncol(res) == 1) res = as.numeric(res)
-  res
-}
-
-#' @export
 locscale_to_locspread = function(μ, σ, ξ, α = .5, β = .8) {
   fix_lengths(μ, σ, ξ)
   s = σ * (ℓ(1 - β / 2, ξ) - ℓ(β / 2, ξ)) / ifelse(ξ == 0, 1, ξ)
@@ -73,6 +65,13 @@ locspread_to_locscale = function(q, s, ξ, α = .5, β = .8) {
   ifelse(ξ == 0, -log(-log(x)), (-log(x))^-ξ - 1)
 }
 
+# twcrps_gev = function(y, μ, σ, ξ, p) {
+#   if (p < 0 || p > 1) stop("p must be a probability between 0 and 1")
+#   res = mapply(twcrps_gev_one_par, μ = μ, σ = σ, ξ = ξ, MoreArgs = list(y = y, p = p))
+#   if (!is.null(dim(res)) && ncol(res) == 1) res = as.numeric(res)
+#   res
+# }
+# 
 # twcrps_gev_one_par = function(y, μ, σ, ξ, p) {
 #   Fy = pgev(y, μ, σ, ξ)
 #   Ei = function(x) {

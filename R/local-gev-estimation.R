@@ -48,7 +48,7 @@ bgev_inla_fit = function(x, α = .5, β = .8, ...) {
 gev_inla_fit = function(x, ...) {
   inla_data = data.frame(x = x, intercept = 1)
   estimate = tryCatch({
-    inla(formula = x ~ -1 + intercept,
+    INLA::inla(formula = x ~ -1 + intercept,
          family = "gev",
          data = inla_data,
          num.threads = 1,

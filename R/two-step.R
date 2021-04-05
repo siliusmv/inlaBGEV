@@ -31,7 +31,7 @@ twostep_modelling = function(data,
       sample_list = list(log_sd_samples),
       data = all_data,
       covariate_names = covariate_names[[2]],
-      mesh = mesh,
+      mesh = spde$mesh,
       verbose = verbose,
       fun = function(pars) exp(rnorm(length(pars$μ), pars$μ, 1 / sqrt(pars$τ))),
       n_batches = 20,
@@ -43,7 +43,7 @@ twostep_modelling = function(data,
       samples = log_sd_samples,
       data = all_data,
       covariate_names = covariate_names[[2]],
-      mesh = mesh,
+      mesh = spde$mesh,
       coords = sf::st_geometry(all_data))
     sd_samples = matrix(exp(log_sd_pars$μ), nrow = nrow(log_sd_pars$μ))
   }
