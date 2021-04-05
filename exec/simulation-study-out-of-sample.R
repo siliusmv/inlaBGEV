@@ -16,11 +16,19 @@ get_return_level_function = function(period) {
 
 n = 1500 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
+n_leave_out_loc = 50
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 n_trials = 200
 block_size = 24 * 365
 num_cores = 25
 verbose = FALSE
+B = 100
+
+#verbose = TRUE
+#num_cores = 1
+#n_trials = 1
+#n_leave_out_loc = 10
+#B = 100
 
 set.seed(1, kind = "L'Ecuyer-CMRG")
 res = parallel::mclapply(
@@ -58,21 +66,22 @@ res = parallel::mclapply(
 
     df = data.frame(X[location_indices, ])
     df$y = y
+    in_sample_df = df[which(location_indices > n_leave_out_loc), ]
+    leave_out_df = df[which(location_indices <= n_leave_out_loc), ]
 
-    truth = list(μ = μ + σ / ξ * (block_size^ξ - 1),
-                 σ = σ * block_size^ξ,
-                 ξ = ξ)
-    truth$q = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$q
-    truth$s = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$s
-    truth$r10 = return_level_bgev(10, truth$μ, truth$σ, ξ)
-    truth$r25 = return_level_bgev(25, truth$μ, truth$σ, ξ)
-    truth$r50 = return_level_bgev(50, truth$μ, truth$σ, ξ)
+    μ_k = μ + σ / ξ * (block_size^ξ - 1)
+    σ_k = σ * block_size^ξ
+    q_k = locscale_to_locspread(μ_k, σ_k, ξ, α, β)$q
+    s_k = locscale_to_locspread(μ_k, σ_k, ξ, α, β)$s
+    r10 = return_level_bgev(10, μ_k, σ_k, ξ)
+    r25 = return_level_bgev(25, μ_k, σ_k, ξ)
+    r50 = return_level_bgev(50, μ_k, σ_k, ξ)
 
     # Run R-INLA with the joint model
     joint_time = proc.time()
     joint_res = tryCatch(
       inla_bgev(
-        data = df,
+        data = in_sample_df,
         response_name = "y",
         diagonal = .1,
         covariate_names = covariate_names,
@@ -94,26 +103,23 @@ res = parallel::mclapply(
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
           r50 = get_return_level_function(50)))
+
       joint_pars = inla_bgev_pars(
         samples = joint_samples,
         data = df,
         covariate_names = covariate_names,
-        s_est = rep(joint_res$standardising_const, n_loc),
-        fun = list(
-          r10 = get_return_level_function(10),
-          r25 = get_return_level_function(25),
-          r50 = get_return_level_function(50)))
+        s_est = rep(joint_res$standardising_const, n_loc))
       joint_score = list()
-      joint_etwcrps = vector("numeric", n_loc)
-      joint_estwcrps = vector("numeric", n_loc)
-      for (j in seq_len(n_loc)) {
+      joint_etwcrps = vector("numeric", n_leave_out_loc)
+      joint_estwcrps = vector("numeric", n_leave_out_loc)
+      for (j in seq_len(n_leave_out_loc)) {
         obs = y[which(location_indices == j)]
         par = locspread_to_locscale(joint_pars$q[j, ], joint_pars$s[j, ],
                                     joint_pars$ξ[j, ], α, β)
         if (verbose) message(j)
         joint_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
         etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
-                                       μ_true = truth$μ, σ_true = truth$σ, ξ_true = ξ)
+                                       μ_true = μ_k, σ_true = σ_k, ξ_true = ξ)
         joint_etwcrps[j] = etwcrps
         S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
         joint_estwcrps[j] = etwcrps / S + log(S)
@@ -123,23 +129,30 @@ res = parallel::mclapply(
       res$inclusion$joint = lapply(
         c("q", "s", "ξ", "r10", "r25", "r50"),
         function(name) {
+          if (name %in% c("q", "s")) {
+            value_name = paste0(name, "_k")
+          } else {
+            value_name = name
+          }
           res = data.frame(
             name = name,
-            value = truth[[name]],
+            value = get(value_name),
             lower = joint_stats[[name]]$`2.5%`,
             upper = joint_stats[[name]]$`97.5%`,
             mean = joint_stats[[name]]$mean,
+            in_sample = location_indices > n_leave_out_loc,
             n_σ = n_σ,
             model = "joint")
           res$err = res$value - res$mean
-          res$included = truth[[name]] > res$lower & truth[[name]] < res$upper
-          res$mse = mean((truth[[name]] - joint_pars[[name]])^2)
+          res$included = get(value_name) > res$lower & get(value_name) < res$upper
           res
         }) %>%
         do.call(rbind, .)
 
       res$score$joint = data.frame(
-        score = joint_score,
+        score = mean(joint_score),
+        etwcrps = mean(joint_etwcrps),
+        estwcrps = mean(joint_estwcrps),
         model = "joint",
         n_σ = n_σ)
 
@@ -155,68 +168,77 @@ res = parallel::mclapply(
       function(i) {
         obs = as.numeric(x[, which(location_indices == i)])
         sd(obs[obs >= quantile(obs, .8)])
-      })
+      }
+    )
+
+    # Data used for modelling the SD at all observation locations
+    sd_df = as.data.frame(X) %>%
+      dplyr::mutate(log_sd = log(s_est))
+    sd_df$log_sd[seq_len(n_leave_out_loc)] = NA
+
+    # Estimate s^*
+    sd_inla_args = inla_default_args("gaussian")
+    sd_inla_args$formula = as.formula(
+      paste("log_sd ~ -1 + intercept +", paste(covariate_names[[2]], collapse = " + ")))
+    sd_inla_args$data = sd_df
 
     twostep_time = proc.time()
-    twostep_res = tryCatch(
-      inla_bgev(
-        data = df,
-        response_name = "y",
-        s_est = s_est[location_indices],
-        diagonal = .1,
-        covariate_names =  covariate_names,
-        α = α,
-        β = β),
-      error = function(e) NULL)
+    #sd_res = do.call(inla, sd_inla_args)
+    #sd_samples = exp(sd_res$summary.linear.predictor$mean)
+    #sd_samples = s_est
+    #twostep_res = tryCatch(
+    #  inla_bgev(
+    #    data = in_sample_df,
+    #    response_name = "y",
+    #    s_est = sd_samples[location_indices][location_indices > n_leave_out_loc],
+    #    diagonal = .1,
+    #    covariate_names =  covariate_names,
+    #    α = α,
+    #    β = β),
+    #  error = function(e) NULL)
+    num_samples = 1000 / B
+    samples = list()
+    s_vals = list()
+    sd_res = do.call(inla, sd_inla_args)
+    sd_samples = INLA::inla.posterior.sample(B, sd_res, seed = 1)
+    sd_pars = inla_gaussian_pars(
+      samples = sd_samples,
+      data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
+      covariate_names = covariate_names[[2]])
+    for (b in seq_len(B)) {
+      #s_est2 = sapply(
+      #  seq_len(n_loc),
+      #  function(i) {
+      #    obs = as.numeric(x[, which(location_indices == i)])
+      #    obs = sample(obs, length(obs), replace = TRUE)
+      #    sd(obs[obs >= quantile(obs, .8)])
+      #  })
+      s_est2 = sd_pars$μ[, b]
+      twostep_res2 = tryCatch(
+        inla_bgev(
+          data = df,
+          response_name = "y",
+          s_est = s_est2[location_indices],
+          diagonal = .1,
+          covariate_names =  covariate_names,
+          α = α,
+          β = β),
+        error = function(e) NULL)
+      if (!is.null(twostep_res2)) {
+        #samples[[b]] = INLA::inla.posterior.sample(10, twostep_res2, seed = 1)
+        #s_vals[[b]] = s_est2 * twostep_res2$standardising_const
+        samples[[b]] = INLA::inla.posterior.sample(num_samples, twostep_res2, seed = 1)
+        s_vals[[b]] = s_est2 * twostep_res2$standardising_const
+      } else {
+        samples[[b]] = NULL
+        s_vals[[b]] = NULL
+      }
+      if (verbose) message("sd_samle nr. ", b)
+    }
     twostep_time = proc.time() - twostep_time
     twostep_time = sum(twostep_time[-3]) # That is just how it works...
 
-    B = 100
-    num_samples = 10
-    samples = list()
-    s_vals = list()
-    set.seed(1)
-    set.seed(1, kind = "L'Ecuyer-CMRG")
-    #for (b in seq_len(B)) {
-    tmp = parallel::mclapply(
-      seq_len(B),
-      mc.cores = 6,
-      mc.preschedule = FALSE,
-      FUN = function(b) {
-        s_est2 = sapply(
-          seq_len(n_loc),
-          function(i) {
-            obs = as.numeric(x[, which(location_indices == i)])
-            obs = sample(obs, length(obs), replace = TRUE)
-            sd(obs[obs >= quantile(obs, .8)])
-          })
-        twostep_res2 = tryCatch(
-          inla_bgev(
-            data = df,
-            response_name = "y",
-            s_est = s_est2[location_indices],
-            diagonal = .1,
-            covariate_names =  covariate_names,
-            α = α,
-            β = β),
-          error = function(e) NULL)
-        if (!is.null(twostep_res2)) {
-          #samples[[b]] = INLA::inla.posterior.sample(10, twostep_res2, seed = 1)
-          #s_vals[[b]] = s_est2 * twostep_res2$standardising_const
-          samples = INLA::inla.posterior.sample(num_samples, twostep_res2, seed = 1)
-          s_vals = s_est2 * twostep_res2$standardising_const
-        } else {
-          samples = NULL
-          s_vals = NULL
-        }
-        message(b)
-        list(samples = samples,
-             s_vals = s_vals)
-      })
-    samples = lapply(tmp, `[[`, "samples")
-    s_vals = lapply(tmp, `[[`, "s_vals")
-
-    twostep_pars2 = inla_multiple_sample_pars(
+    twostep_pars = inla_multiple_sample_pars(
       sample_list = samples,
       data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
       covariate_names = covariate_names,
@@ -226,43 +248,61 @@ res = parallel::mclapply(
         r25 = get_return_level_function(25),
         r50 = get_return_level_function(50)))
 
-    twostep_score2 = list()
-    twostep_etwcrps2 = vector("numeric", n_loc)
-    twostep_estwcrps2 = vector("numeric", n_loc)
-    for (j in seq_len(n_loc)) {
+    twostep_stats = inla_stats(
+      sample_list = samples,
+      data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
+      covariate_names = covariate_names,
+      s_list = s_vals,
+      verbose = verbose,
+      fun = list(
+        r10 = get_return_level_function(10),
+        r25 = get_return_level_function(25),
+        r50 = get_return_level_function(50)))
+
+    twostep_score = list()
+    twostep_etwcrps = vector("numeric", n_leave_out_loc)
+    twostep_estwcrps = vector("numeric", n_leave_out_loc)
+    for (j in seq_len(n_leave_out_loc)) {
       obs = y[which(location_indices == j)]
-      par = locspread_to_locscale(twostep_pars2$q[j, ], twostep_pars2$s[j, ],
-                                  twostep_pars2$ξ[j, ], α, β)
+      par = locspread_to_locscale(twostep_pars$q[j, ], twostep_pars$s[j, ],
+                                  twostep_pars$ξ[j, ], α, β)
       if (verbose) message(j)
-      twostep_score2[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+      twostep_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
       etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
-                                     μ_true = truth$μ, σ_true = truth$σ, ξ_true = ξ)
-      twostep_etwcrps2[j] = etwcrps
+                                     μ_true = μ_k, σ_true = σ_k, ξ_true = ξ)
+      twostep_etwcrps[j] = etwcrps
       S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
-      twostep_estwcrps2[j] = etwcrps / S + log(S)
+      twostep_estwcrps[j] = etwcrps / S + log(S)
     }
-    twostep_score2 = unlist(twostep_score2)
+    twostep_score = unlist(twostep_score)
 
     res$inclusion$twostep = lapply(
       c("q", "s", "ξ", "r10", "r25", "r50"),
       function(name) {
+        if (name %in% c("q", "s")) {
+          value_name = paste0(name, "_k")
+        } else {
+          value_name = name
+        }
         res = data.frame(
           name = name,
-          value = truth[[name]],
+          value = get(value_name),
           lower = twostep_stats[[name]]$`2.5%`,
           upper = twostep_stats[[name]]$`97.5%`,
           mean = twostep_stats[[name]]$mean,
+          in_sample = location_indices > n_leave_out_loc,
           n_σ = n_σ,
           model = "twostep")
         res$err = res$value - res$mean
-        res$included = truth[[name]] > res$lower & truth[[name]] < res$upper
-        res$mse = mean((truth[[name]] - twostep_pars[[name]])^2)
+        res$included = get(value_name) > res$lower & get(value_name) < res$upper
         res
       }) %>%
       do.call(rbind, .)
 
     res$score$twostep = data.frame(
-      score = twostep_score,
+      score = mean(twostep_score),
+      etwcrps = mean(twostep_etwcrps),
+      estwcrps = mean(twostep_estwcrps),
       model = "twostep",
       n_σ = n_σ)
 
@@ -270,78 +310,6 @@ res = parallel::mclapply(
       time = twostep_time,
       model = "twostep",
       n_σ = n_σ)
-
-    
-
-    
-
-    if (!is.null(twostep_res)) {
-      twostep_samples = INLA::inla.posterior.sample(1000, twostep_res, seed = 1)
-      twostep_stats = inla_stats(
-        sample_list = list(twostep_samples),
-        data = dplyr::distinct(df, σ_1, .keep_all = TRUE),
-        covariate_names = covariate_names,
-        s_list = list(s_est * twostep_res$standardising_const),
-        verbose = verbose,
-        fun = list(
-          r10 = get_return_level_function(10),
-          r25 = get_return_level_function(25),
-          r50 = get_return_level_function(50)))
-
-      twostep_pars = inla_bgev_pars(
-        samples = twostep_samples,
-        data = df,
-        covariate_names = covariate_names,
-        s_est = s_est * twostep_res$standardising_const,
-        fun = list(
-          r10 = get_return_level_function(10),
-          r25 = get_return_level_function(25),
-          r50 = get_return_level_function(50)))
-      twostep_score = list()
-      twostep_etwcrps = vector("numeric", n_loc)
-      twostep_estwcrps = vector("numeric", n_loc)
-      for (j in seq_len(n_loc)) {
-        obs = y[which(location_indices == j)]
-        par = locspread_to_locscale(twostep_pars$q[j, ], twostep_pars$s[j, ],
-                                    twostep_pars$ξ[j, ], α, β)
-        if (verbose) message(j)
-        twostep_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
-        etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
-                                       μ_true = truth$μ, σ_true = truth$σ, ξ_true = ξ)
-        twostep_etwcrps[j] = etwcrps
-        S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
-        twostep_estwcrps[j] = etwcrps / S + log(S)
-      }
-      twostep_score = unlist(twostep_score)
-
-      res$inclusion$twostep = lapply(
-        c("q", "s", "ξ", "r10", "r25", "r50"),
-        function(name) {
-          res = data.frame(
-            name = name,
-            value = truth[[name]],
-            lower = twostep_stats[[name]]$`2.5%`,
-            upper = twostep_stats[[name]]$`97.5%`,
-            mean = twostep_stats[[name]]$mean,
-            n_σ = n_σ,
-            model = "twostep")
-          res$err = res$value - res$mean
-          res$included = truth[[name]] > res$lower & truth[[name]] < res$upper
-          res$mse = mean((truth[[name]] - twostep_pars[[name]])^2)
-          res
-        }) %>%
-        do.call(rbind, .)
-
-      res$score$twostep = data.frame(
-        score = twostep_score,
-        model = "twostep",
-        n_σ = n_σ)
-
-      res$time$twostep = data.frame(
-        time = twostep_time,
-        model = "twostep",
-        n_σ = n_σ)
-    }
 
     message("Done with iter nr. ", i)
     #message("twostep stats:")
@@ -358,7 +326,8 @@ res = parallel::mclapply(
     res
   })
 
-saveRDS(res, file.path(here::here(), "results", "simulation-in-sample.rds"))
+
+saveRDS(res, file.path(here::here(), "results", "simulation-out-of-sample.rds"))
 
 tmp = list()
 for (n in names(res[[1]])) {
@@ -367,9 +336,13 @@ for (n in names(res[[1]])) {
 }
 res = tmp
 
+res$score %>%
+  dplyr::group_by(model) %>%
+  dplyr::summarise(score = mean(score), etwcrps = mean(etwcrps), estwcrps = mean(estwcrps))
+
 
 score_stats = res$score %>%
-  dplyr::group_by(model, i) %>%
+  dplyr::group_by(model) %>%
   dplyr::summarise(score = mean(score), n_σ = unique(n_σ)) %>%
   tidyr::pivot_wider(values_from = score, names_from = model) %>%
   dplyr::mutate(diff = joint - twostep, n_σ = factor(n_σ))
@@ -380,11 +353,6 @@ message("twostep StwCRPS")
 score_stats$twostep %>% summary()
 message("joint StwCRPS")
 score_stats$joint %>% summary()
-# The twostep mean StwCRPS is always better!!
-# However, I should probably compute this exactly instead of using a finite numer of observations
-
-# This shows that we are able to use more information from the
-# standard deviation of large observations to improve prediction performance
 
 ggplot(score_stats) +
   geom_point(aes(x = i, y = diff, col = n_σ))
@@ -395,32 +363,35 @@ time_stats = res$time %>%
                    lower_time = quantile(time, .1),
                    upper_time = quantile(time, .9))
 print(time_stats)
-# The two-step method is slightly faster
 
-mse = res$inclusion %>%
-  dplyr::group_by(name, model) %>%
-  dplyr::summarise(mse = mean(mse, na.rm = TRUE))
-print(mse)
+message("Joint StwCRPS :")
+print(summary(dplyr::filter(res$score, model == "joint")$score))
+message("Twostep StwCRPS :")
+print(summary(dplyr::filter(res$score, model == "twostep")$score))
 
 percentages = res$inclusion %>%
-  dplyr::group_by(name, n_σ, model) %>%
+  dplyr::group_by(name, n_σ, model, in_sample) %>%
   dplyr::mutate(percentage = mean(included)) %>%
-  dplyr::select(name, n_σ, model, percentage) %>%
+  dplyr::select(name, n_σ, model, percentage, in_sample) %>%
   dplyr::slice(1)
 
 ggplot(percentages) +
   geom_col(aes(x = name, y = percentage, fill = model), position = "dodge") +
+  facet_wrap(~n_σ + in_sample) +
   geom_hline(yintercept = .95)
-# The inclusion probabilities are a bit off, probably because we don't
-# propagate the uncertainty from s^*
 
 message("joint inclusion stats")
 dplyr::filter(res$inclusion, model == "joint") %>%
-  dplyr::group_by(name) %>%
+  dplyr::group_by(in_sample, name) %>%
   dplyr::summarise(percentage = mean(included)) %>%
   print()
 message("twostep inclusion stats")
 dplyr::filter(res$inclusion, model == "twostep") %>%
-  dplyr::group_by(name) %>%
+  dplyr::group_by(in_sample, name) %>%
   dplyr::summarise(percentage = mean(included)) %>%
   print()
+
+
+res$inclusion %>%
+  dplyr::group_by(model, name, in_sample) %>%
+  dplyr::summarise(mean(included))
