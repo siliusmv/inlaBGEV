@@ -6,6 +6,23 @@ library(parallel)
 library(sf)
 library(mvtnorm)
 
+expected_twcrps_bgev_gev = function(μ, σ, ξ, p,
+                                    μ_true = μ, σ_true = σ, ξ_true = ξ,
+                                    p_a = .1, p_b = .2) {
+  p_min = .00001
+  y_min = min(qgev(p_min, μ_true, σ_true, ξ_true))
+  p_max = .99999
+  y_max = max(qgev(p_max, μ_true, σ_true, ξ_true))
+  if (length(c(μ_true, σ_true, ξ_true)) == 3) {
+    density = function(x) dgev(x, μ_true, σ_true, ξ_true)
+  } else {
+    density = function(x) sapply(x, function(z) mean(dgev(z, μ_true, σ_true, ξ_true)))
+  }
+  integrate(function(y) density(y) * twcrps_bgev(y, μ, σ, ξ, p, p_b),
+            lower = y_min, upper = y_max)$value
+}
+
+
 get_return_level_function = function(period) {
   function(pars) {
     locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
@@ -112,7 +129,7 @@ res = parallel::mclapply(
                                     joint_pars$ξ[j, ], α, β)
         if (verbose) message(j)
         joint_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
-        etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
+        etwcrps = expected_twcrps_bgev_gev(par$μ, par$σ, par$ξ, .9,
                                        μ_true = truth$μ, σ_true = truth$σ, ξ_true = ξ)
         joint_etwcrps[j] = etwcrps
         S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
@@ -208,7 +225,7 @@ res = parallel::mclapply(
                                     twostep_pars$ξ[j, ], α, β)
         if (verbose) message(j)
         twostep_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
-        etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
+        etwcrps = expected_twcrps_bgev_gev(par$μ, par$σ, par$ξ, .9,
                                        μ_true = truth$μ, σ_true = truth$σ, ξ_true = ξ)
         twostep_etwcrps[j] = etwcrps
         S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
@@ -274,6 +291,14 @@ for (n in names(res[[1]])) {
 }
 res = tmp
 
+res$score %>%
+  dplyr::group_by(model) %>%
+  dplyr::summarise(score = base::mean(score),
+                   etwcrps = base::mean(etwcrps),
+                   estwcrps = base::mean(estwcrps))
+# This shows that we do better on the observations, but worse on the "truth",
+# meaning that we are in some way overfitting
+
 
 score_stats = res$score %>%
   dplyr::group_by(model, i) %>%
@@ -295,6 +320,7 @@ score_stats$joint %>% base::summary()
 
 ggplot(score_stats) +
   geom_point(aes(x = i, y = diff, col = n_σ))
+# No apparent trends in n_σ
 
 time_stats = res$time %>%
   dplyr::group_by(model) %>%
@@ -303,11 +329,6 @@ time_stats = res$time %>%
                    upper_time = quantile(time, .9))
 base::print(time_stats)
 # The two-step method is slightly faster
-
-mse = res$inclusion %>%
-  dplyr::group_by(name, model) %>%
-  dplyr::summarise(mse = base::mean(mse, na.rm = TRUE))
-base::print(mse)
 
 percentages = res$inclusion %>%
   dplyr::group_by(name, n_σ, model) %>%

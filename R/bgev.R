@@ -98,9 +98,9 @@ expected_twcrps_bgev = function(μ, σ, ξ, p,
                                 μ_true = μ, σ_true = σ, ξ_true = ξ,
                                 p_a = .1, p_b = .2) {
   p_min = .00001
-  y_min = min(qbgev(p_min, μ_true, σ_true, ξ_true))
+  y_min = min(qbgev(p_min, μ_true, σ_true, ξ_true, p_a, p_b))
   p_max = .99999
-  y_max = max(qbgev(p_max, μ_true, σ_true, ξ_true))
+  y_max = max(qbgev(p_max, μ_true, σ_true, ξ_true, p_a, p_b))
   if (length(c(μ_true, σ_true, ξ_true)) == 3) {
     density = function(x) dbgev(x, μ_true, σ_true, ξ_true, p_a, p_b)
   } else {

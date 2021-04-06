@@ -6,6 +6,22 @@ library(parallel)
 library(sf)
 library(mvtnorm)
 
+expected_twcrps_bgev_gev = function(μ, σ, ξ, p,
+                                    μ_true = μ, σ_true = σ, ξ_true = ξ,
+                                    p_a = .1, p_b = .2) {
+  p_min = .00001
+  y_min = min(qgev(p_min, μ_true, σ_true, ξ_true))
+  p_max = .99999
+  y_max = max(qgev(p_max, μ_true, σ_true, ξ_true))
+  if (length(c(μ_true, σ_true, ξ_true)) == 3) {
+    density = function(x) dgev(x, μ_true, σ_true, ξ_true)
+  } else {
+    density = function(x) sapply(x, function(z) mean(dgev(z, μ_true, σ_true, ξ_true)))
+  }
+  integrate(function(y) density(y) * twcrps_bgev(y, μ, σ, ξ, p, p_b),
+            lower = y_min, upper = y_max)$value
+}
+
 get_return_level_function = function(period) {
   function(pars) {
     locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
@@ -118,7 +134,7 @@ res = parallel::mclapply(
                                     joint_pars$ξ[j, ], α, β)
         if (verbose) message(j)
         joint_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
-        etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
+        etwcrps = expected_twcrps_bgev_gev(par$μ, par$σ, par$ξ, .9,
                                        μ_true = μ_k, σ_true = σ_k, ξ_true = ξ)
         joint_etwcrps[j] = etwcrps
         S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
@@ -271,7 +287,7 @@ res = parallel::mclapply(
                                   twostep_pars$ξ[j, ], α, β)
       if (verbose) message(j)
       twostep_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
-      etwcrps = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9,
+      etwcrps = expected_twcrps_bgev_gev(par$μ, par$σ, par$ξ, .9,
                                      μ_true = μ_k, σ_true = σ_k, ξ_true = ξ)
       twostep_etwcrps[j] = etwcrps
       S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
@@ -332,7 +348,6 @@ res = parallel::mclapply(
     res
   })
 
-
 saveRDS(res, file.path(here::here(), "results", "simulation-out-of-sample.rds"))
 
 tmp = list()
@@ -347,20 +362,41 @@ res$score %>%
   dplyr::summarise(score = base::mean(score),
                    etwcrps = base::mean(etwcrps),
                    estwcrps = base::mean(estwcrps))
+# This shows that we do better on the observations and on the estwcrps.
 
+# Add a permutation test to be certain
+joint_estwcrps = dplyr::filter(res$score, model == "joint")$estwcrps
+twostep_estwcrps = dplyr::filter(res$score, model == "twostep")$estwcrps
+diff_estwcrps = joint_estwcrps - twostep_estwcrps
+summary(diff_estwcrps)
+diff_bootstraps = vapply(
+  1:1000,
+  function(i) base::mean(sample(diff_estwcrps, length(diff_estwcrps), replace = TRUE)),
+  numeric(1))
+summary(diff_bootstraps)
+# Permutation test shows that we have a significant difference!!!!!!!
 
-score_stats = res$score %>%
-  dplyr::group_by(model) %>%
-  dplyr::summarise(score = base::mean(score), n_σ = unique(n_σ)) %>%
-  tidyr::pivot_wider(values_from = score, names_from = model) %>%
-  dplyr::mutate(diff = joint - twostep, n_σ = factor(n_σ))
+res$score %>%
+  tidyr::pivot_longer(c("score", "etwcrps", "estwcrps")) %>%
+  ggplot() +
+  geom_point(aes(x = i, y = value, col = model)) +
+  facet_wrap(~name, scales = "free_y")
 
-message("diff")
-score_stats$diff %>% base::summary()
-message("twostep StwCRPS")
-score_stats$twostep %>% base::summary()
-message("joint StwCRPS")
-score_stats$joint %>% base::summary()
+res$score %>%
+  tidyr::pivot_longer(c("score", "etwcrps", "estwcrps")) %>%
+  tidyr::pivot_wider(names_from = model) %>%
+  dplyr::mutate(diff = joint - twostep) %>%
+  ggplot() +
+  geom_point(aes(x = i, y = diff)) +
+  facet_wrap(~name)
+
+res$score %>%
+  tidyr::pivot_longer(c("score", "etwcrps", "estwcrps")) %>%
+  tidyr::pivot_wider(names_from = model) %>%
+  dplyr::mutate(diff = joint - twostep) %>%
+  dplyr::group_by(name) %>%
+  dplyr::summarise(summ = list(summary(diff))) %>%
+  dplyr::pull(summ)
 
 time_stats = res$time %>%
   dplyr::group_by(model) %>%
@@ -390,8 +426,3 @@ dplyr::filter(res$inclusion, model == "twostep") %>%
   dplyr::group_by(in_sample, name) %>%
   dplyr::summarise(percentage = base::mean(included)) %>%
   base::print()
-
-
-res$inclusion %>%
-  dplyr::group_by(model, name, in_sample) %>%
-  dplyr::summarise(base::mean(included))

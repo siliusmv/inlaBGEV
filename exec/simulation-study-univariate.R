@@ -4,6 +4,23 @@ library(dplyr)
 library(inlaBGEV)
 library(parallel)
 
+expected_twcrps_bgev_gev = function(μ, σ, ξ, p,
+                                    μ_true = μ, σ_true = σ, ξ_true = ξ,
+                                    p_a = .1, p_b = .2) {
+  p_min = .00001
+  y_min = min(qgev(p_min, μ_true, σ_true, ξ_true))
+  p_max = .99999
+  y_max = max(qgev(p_max, μ_true, σ_true, ξ_true))
+  if (length(c(μ_true, σ_true, ξ_true)) == 3) {
+    density = function(x) dgev(x, μ_true, σ_true, ξ_true)
+  } else {
+    density = function(x) sapply(x, function(z) mean(dgev(z, μ_true, σ_true, ξ_true)))
+  }
+  integrate(function(y) density(y) * twcrps_bgev(y, μ, σ, ξ, p, p_b),
+            lower = y_min, upper = y_max)$value
+}
+
+
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 n_vec = c(50, 100, 500, 1000, 2000)
 n_trials = 2000
@@ -53,7 +70,7 @@ stats = parallel::mclapply(
         mse = c(mse, base::mean((est_return_levels[j, ] - return_levels[j])^2))
       }
       stwcrps = base::mean(stwcrps_bgev(y, μ_s, σ_s, ξ_s, .9))
-      etwcrps = expected_twcrps_bgev(μ_s, σ_s, ξ_s, .9, μ_true = μ, σ_true = σ, ξ_true = ξ)
+      etwcrps = expected_twcrps_bgev_gev(μ_s, σ_s, ξ_s, .9, μ_true = μ, σ_true = σ, ξ_true = ξ)
       S = abs(expected_twcrps_bgev(μ_s, σ_s, ξ_s, .9))
       estwcrps = etwcrps / S + log(S)
       #stwcrps_true = mean(stwcrps_bgev(y, μ, σ, ξ, .9))
@@ -111,4 +128,5 @@ stats %>%
     stwcrps = base::mean(stwcrps),
     estwcrps = base::mean(estwcrps),
     etwcrps = base::mean(etwcrps))
-# Everything goes down
+# Everything goes down, except the stwcrps. This kind of makes sense, I think.
+# The reason is that we are "overfitting" to the available data or something like that...
