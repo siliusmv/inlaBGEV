@@ -22,8 +22,8 @@ expected_twcrps_bgev_gev = function(μ, σ, ξ, p,
 
 
 α = .5; β = .8 # Probabilities used in the location and spread parameters
-n_vec = c(50, 100, 500, 1000, 2000)
-n_trials = 2000
+n_vec = c(10, 50, 100, 500, 1000, 5000, 10000)
+n_trials = 1000
 num_cores = 25
 return_periods = c(5, 10, 25, 50)
 

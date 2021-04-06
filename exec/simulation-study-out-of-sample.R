@@ -38,7 +38,7 @@ n = 1500 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
 n_leave_out_loc = 50 # Number of locations that are only used for testing
 α = .5; β = .8 # Probabilities used in the location and spread parameters
-n_trials = 200 # Number of times to perform the simulation study
+n_trials = 300 # Number of times to perform the simulation study
 block_size = 24 * 365 # The size of a block
 num_cores = 25 # Number of cores for parallelisation
 B = 100 # The number of bootstraps used in the two-step model for estimating s^*
@@ -93,7 +93,7 @@ res = parallel::mclapply(
 
     # Create a list containing the true block maxima parameters and return level values
     # at all locations
-    truth = list(μ = 0, σ = σ * block_size^ξ, ξ = ξ)
+    truth = list(μ = μ + σ / ξ * (block_size^ξ - 1), σ = σ * block_size^ξ, ξ = ξ)
     truth$q = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$q
     truth$s = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$s
     truth$r10 = return_level_bgev(10, truth$μ, truth$σ, ξ)
@@ -259,6 +259,13 @@ res = parallel::mclapply(
     }
     twostep_time = proc.time() - twostep_time
     twostep_time = sum(twostep_time[-3]) # That is just how it works...
+
+    # Remove the bad samples where R-INLA crashed
+    bad_samples = vapply(samples, is.null, logical(1))
+    if (any(bad_samples)) {
+      samples = samples[-which(bad_samples)]
+      s_vals = s_vals[-which(bad_samples)]
+    }
 
     # Use the samples to compute estimated parameters and return levels at all locations
     twostep_pars = inla_multiple_sample_pars(
@@ -458,19 +465,36 @@ res$score %>%
   dplyr::summarise(score = base::mean(score),
                    etwcrps = base::mean(etwcrps),
                    estwcrps = base::mean(estwcrps))
-# This shows that we do better on the observations and on the estwcrps.
 
-# Add a permutation test to be certain
-joint_estwcrps = dplyr::filter(res$score, model == "joint")$estwcrps
-twostep_estwcrps = dplyr::filter(res$score, model == "twostep")$estwcrps
-diff_estwcrps = joint_estwcrps - twostep_estwcrps
-summary(diff_estwcrps)
+joint_score = dplyr::filter(res$score, model == "joint")$score
+twostep_score = dplyr::filter(res$score, model == "twostep")$score
+diff_score = joint_score - twostep_score
 diff_bootstraps = vapply(
-  1:1000,
-  function(i) base::mean(sample(diff_estwcrps, length(diff_estwcrps), replace = TRUE)),
+  1:10000,
+  function(i) base::mean(sample(diff_score, length(diff_score), replace = TRUE)),
   numeric(1))
-summary(diff_bootstraps)
-# Permutation test shows that we have a significant difference!!!!!!!
+c(mean = mean(diff_bootstraps),
+  quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
+
+joint_score = dplyr::filter(res$score, model == "joint")$score
+twostep_one_score = dplyr::filter(res$score, model == "twostep_one")$score
+diff_score = joint_score - twostep_one_score
+diff_bootstraps = vapply(
+  1:10000,
+  function(i) base::mean(sample(diff_score, length(diff_score), replace = TRUE)),
+  numeric(1))
+c(mean = mean(diff_bootstraps),
+  quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
+
+twostep_score = dplyr::filter(res$score, model == "twostep")$score
+twostep_one_score = dplyr::filter(res$score, model == "twostep_one")$score
+diff_score = twostep_score - twostep_one_score
+diff_bootstraps = vapply(
+  1:10000,
+  function(i) base::mean(sample(diff_score, length(diff_score), replace = TRUE)),
+  numeric(1))
+c(mean = mean(diff_bootstraps),
+  quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
 
 res$score %>%
   tidyr::pivot_longer(c("score", "etwcrps", "estwcrps")) %>%

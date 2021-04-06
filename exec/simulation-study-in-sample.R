@@ -37,7 +37,7 @@ get_return_level_function = function(period) {
 n = 1500 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
 α = .5; β = .8 # Probabilities used in the location and spread parameters
-n_trials = 200 # Number of times to perform the simulation study
+n_trials = 300 # Number of times to perform the simulation study
 block_size = 24 * 365 # The size of a block
 num_cores = 25 # Number of cores for parallelisation
 verbose = FALSE # Print a lot of progress messages?
@@ -88,7 +88,7 @@ res = parallel::mclapply(
 
     # Create a list containing the true block maxima parameters and return level values
     # at all locations
-    truth = list(μ = 0, σ = σ * block_size^ξ, ξ = ξ)
+    truth = list(μ = μ + σ / ξ * (block_size^ξ - 1), σ = σ * block_size^ξ, ξ = ξ)
     truth$q = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$q
     truth$s = locscale_to_locspread(truth$μ, truth$σ, ξ, α, β)$s
     truth$r10 = return_level_bgev(10, truth$μ, truth$σ, ξ)
