@@ -11,9 +11,9 @@ library(INLA)
 hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
-n_sd_samples = 1 # Number of samples drawn from the distribution of the SD
-num_cores = 1 # Number of cores used for parallel computations
-n_folds = 5 # number of folds for cross-validation
+n_sd_samples = 100 # Number of samples drawn from the distribution of the SD
+num_cores = 100 # Number of cores used for parallel computations
+n_folds = 10 # number of folds for cross-validation
 p0 = .9 # Threshold used in the stwCRPS
 
 # A list containing covariate_names for location, spread and tail parameter
@@ -27,6 +27,8 @@ for (i in seq_along(hour_vec)) {
   stats[[i]] = list(
     in_sample_twostep = list(),
     out_of_sample_twostep = list(),
+    in_sample_twostep_one = list(),
+    out_of_sample_twostep_one = list(),
     in_sample_joint = list(),
     out_of_sample_joint = list())
   n_hours = hour_vec[i]
@@ -116,6 +118,44 @@ for (i in seq_along(hour_vec)) {
       obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
 
+  # Perform in-sample estimation using all the data
+  set.seed(1)
+  twostep_one = twostep_modelling(
+    data = data,
+    sd_model = sd_res,
+    covariate_names = covariate_names,
+    response_name = "value",
+    diagonal = .05,
+    n_sd_samples = 1,
+    spde = spde,
+    num_cores = 1,
+    α = α,
+    β = β)
+  message("Done with in-sample two-step model")
+
+  # Estimate parameters at all locations
+  params = list()
+  for (k in seq_along(twostep_one)) {
+    params[[k]] = inla_bgev_pars(
+      samples = twostep_one[[k]]$samples,
+      data = data,
+      covariate_names = list(covariate_names[[1]], NULL, NULL),
+      s_est = twostep_one[[k]]$s_est,
+      mesh = mesh,
+      coords = st_geometry(dplyr::distinct(data, id)))
+  }
+  params = purrr::transpose(params)
+  for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
+
+  # Compute stwCRPS
+  for (k in seq_along(unique(data$id))) {
+    id = unique(data$id)[k]
+    obs = dplyr::filter(data, id == !!id)$value
+    locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
+    stats[[i]]$in_sample_twostep_one[[k]] = stwcrps_bgev(
+      obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
+  }
+
   # Run the joint model on the data
   joint = tryCatch(inla_bgev(
     data = data,
@@ -173,7 +213,7 @@ for (i in seq_along(hour_vec)) {
     sd_inla_args$data$sd_spde = sd_spde
     sd_res = do.call(inla, sd_inla_args)
 
-    # Perform out-of-sample estimation with the two-step model
+    # Perform out-of-sample estimation with the two-step model, with bootsrtapping
     set.seed(1)
     twostep = twostep_modelling(
       data = in_fold_data,
@@ -211,6 +251,47 @@ for (i in seq_along(hour_vec)) {
       obs = dplyr::filter(out_of_fold_data, id == !!id)$value
       locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
       stats[[i]]$out_of_sample_twostep[[j]][[k]] = stwcrps_bgev(
+        obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
+    }
+
+    # Perform out-of-sample estimation with the two-step model, without bootstrapping
+    set.seed(1)
+    twostep_one = twostep_modelling(
+      data = in_fold_data,
+      prediction_data = dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE),
+      sd_model = sd_res,
+      covariate_names = covariate_names,
+      response_name = "value",
+      diagonal = .05,
+      n_sd_samples = 1,
+      verbose = FALSE,
+      spde = spde,
+      num_cores = 1,
+      α = α,
+      β = β)
+    message("Done with out-of-sample two-step model for fold ", j)
+
+    # Estimate parameters at all out-of-fold locations
+    params = list()
+    for (k in seq_along(twostep_one)) {
+      params[[k]] = inla_bgev_pars(
+        samples = twostep_one[[k]]$samples,
+        data = dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE),
+        covariate_names = list(covariate_names[[1]], NULL, NULL),
+        s_est = twostep_one[[k]]$s_est,
+        mesh = mesh,
+        coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
+    }
+    params = purrr::transpose(params)
+    for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
+
+    # Compute stwCRPS
+    stats[[i]]$out_of_sample_twostep_one[[j]] = list()
+    for (k in seq_along(unique(out_of_fold_data$id))) {
+      id = unique(out_of_fold_data$id)[k]
+      obs = dplyr::filter(out_of_fold_data, id == !!id)$value
+      locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
+      stats[[i]]$out_of_sample_twostep_one[[j]][[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
 
@@ -257,12 +338,16 @@ for (i in seq_along(hour_vec)) {
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
           "=========================================")
-  message("In sample, twostep:")
+  message("In sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$in_sample_twostep)))
+  message("In sample, twostep without bootstrapping:")
+  print(data_stats(unlist(stats[[i]]$in_sample_twostep_one)))
   message("In sample, joint:")
   print(data_stats(unlist(stats[[i]]$in_sample_joint)))
-  message("Out of sample, twostep:")
+  message("Out of sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_twostep)))
+  message("Out of sample, twostep without bootstrapping:")
+  print(data_stats(unlist(stats[[i]]$out_of_sample_twostep_one)))
   message("Out of sample, joint:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_joint)))
 }
@@ -275,12 +360,49 @@ for (i in seq_along(stats)) {
   message("=========================================\n",
           hour_vec[i], " hour(s)\n",
           "=========================================")
-  message("In sample, twostep:")
+  message("In sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$in_sample_twostep), q))
+  message("In sample, twostep without bootstrapping:")
+  print(data_stats(unlist(stats[[i]]$in_sample_twostep_one), q))
   message("In sample, joint:")
   print(data_stats(unlist(stats[[i]]$in_sample_joint), q))
-  message("Out of sample, twostep:")
+  message("Out of sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_twostep), q))
+  message("Out of sample, twostep without bootstrapping:")
+  print(data_stats(unlist(stats[[i]]$out_of_sample_twostep_one), q))
   message("Out of sample, joint:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_joint), q))
 }
+
+# Print the results in a latex-friendly tabular format
+df = lapply(
+  seq_along(stats),
+  function(i) {
+    res = c(
+      base::mean(unlist(stats[[i]]$out_of_sample_joint)),
+      base::mean(unlist(stats[[i]]$out_of_sample_twostep)),
+      base::mean(unlist(stats[[i]]$out_of_sample_twostep_one)),
+      base::mean(unlist(stats[[i]]$in_sample_joint)),
+      base::mean(unlist(stats[[i]]$in_sample_twostep),
+      base::mean(unlist(stats[[i]]$in_sample_twostep_one))))
+    best_indx = c(1, 3) + as.numeric(res[c(2, 4)] < res[c(1, 3)])
+    res = format(res, digits = 3)
+    res[best_indx] = paste0("\\bm{", res[best_indx], "}")
+    res = paste0("\\(", res, "\\)")
+    res = data.frame(res)
+    names(res) = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"))
+    res
+  }
+) %>%
+  do.call(cbind, .)
+table = list(c("\n& & ", paste(names(df), collapse = " & "), "\\\\\n"))
+for (i in 1:nrow(df)) {
+  table[[i + 1]] = c(case_when(i == 1 ~ "\\midrule\nOut-of-sample",
+                               i == 4 ~ "\\midrule\nIn-sample",
+                               TRUE ~ ""), " &",
+                     case_when(i %in% c(1, 4) ~ "Joint",
+                               i %in% c(2, 5) ~ "Two-step with bootstrap",
+                               i %in% c(3, 6) ~ "Two-step"), " model &",
+                     paste(df[i, ], collapse = " & "), "\\\\\n")
+}
+cat(unlist(table))
