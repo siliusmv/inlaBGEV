@@ -92,10 +92,14 @@ stats = parallel::mclapply(
         μ_s = locscale_s$μ; σ_s = locscale_s$σ
         est_return_levels = mapply(return_level_bgev, μ = μ_s, σ = σ_s, ξ = ξ_s,
                                    MoreArgs = list(period = return_periods))
-        pars = c("q", "s", "ξ", paste(return_periods, "return period"))
+        loglik = sum(dbgev(y, mean(μ_s), mean(σ_s), mean(ξ_s), log = TRUE))
+        true_loglik = sum(dbgev(y, μ, σ, ξ, log = TRUE))
+        gev_loglik = sum(dgev(y, mean(μ_s), mean(σ_s), mean(ξ_s), log = TRUE))
+        gev_true_loglik = sum(dgev(y, μ, σ, ξ, log = TRUE))
+        pars = c("q", "s", "ξ", "μ", "σ", paste(return_periods, "return period"))
         is_inside = NULL; lower = NULL; upper = NULL; mean_vals = NULL; mse = NULL
-        values = c(q, s, ξ, return_levels)
-        for (var in c("q", "s", "ξ")) {
+        values = c(q, s, ξ, μ, σ, return_levels)
+        for (var in c("q", "s", "ξ", "μ", "σ")) {
           interval = quantile(get(paste0(var, "_s")), c(.025, .975))
           is_inside = c(is_inside, get(var) >= interval[1] && get(var) <= interval[2])
           lower = c(lower, interval[1]); upper = c(upper, interval[2])
@@ -104,11 +108,13 @@ stats = parallel::mclapply(
         }
         for (j in seq_along(return_periods)) {
           interval = quantile(est_return_levels[j, ], c(.025, .975))
-          is_inside = c(is_inside, return_levels[j] >= interval[1] && return_levels[j] <= interval[2])
+          is_inside = c(is_inside,
+                        return_levels[j] >= interval[1] && return_levels[j] <= interval[2])
           lower = c(lower, interval[1]); upper = c(upper, interval[2])
           mean_vals = c(mean_vals, base::mean(est_return_levels[j, ]))
           mse = c(mse, base::mean((est_return_levels[j, ] - return_levels[j])^2))
         }
+        twcrps = base::mean(twcrps_bgev(y, μ_s, σ_s, ξ_s, .9))
         stwcrps = base::mean(stwcrps_bgev(y, μ_s, σ_s, ξ_s, .9))
         etwcrps = expected_twcrps_bgev_gev(μ_s, σ_s, ξ_s, .9, μ_true = μ, σ_true = σ, ξ_true = ξ)
         S = abs(expected_twcrps_bgev(μ_s, σ_s, ξ_s, .9))
@@ -121,10 +127,16 @@ stats = parallel::mclapply(
           n = n, i = i,
           lower = lower,
           mean = mean_vals,
+          larger_than_the_truth = mean_vals > values,
           mse = mse,
           stwcrps = stwcrps,
+          twcrps = twcrps,
           etwcrps = etwcrps,
           estwcrps = estwcrps,
+          loglik = loglik,
+          true_loglik = true_loglik,
+          gev_loglik = gev_loglik,
+          gev_true_loglik = gev_true_loglik,
           #stwcrps_true = mean(stwcrps_true),
           upper = upper,
           CI_width = upper - lower,
@@ -138,33 +150,6 @@ stats = parallel::mclapply(
 saveRDS(
   stats,
   file.path(here::here(), "results", "simulation-study-univariate.rds"))
-
-stats %>%
-  do.call(rbind, .) %>%
-  dplyr::filter(n == tail(n_vec, 1), par == "s") %>%
-  dplyr::mutate(below = case_when(val < lower ~ TRUE, val > upper ~ FALSE, TRUE ~ NA)) %>%
-  ggplot() +
-  geom_point(aes(x = i, y = val, col = below)) +
-  geom_errorbar(aes(x = i, ymin = lower, ymax = upper, col = below)) +
-  facet_wrap(~is_inside)
-
-stats %>%
-  do.call(rbind, .) %>%
-  dplyr::filter(n == tail(n_vec, 1), par == "ξ") %>%
-  dplyr::mutate(below = case_when(val < lower ~ TRUE, val > upper ~ FALSE, TRUE ~ NA)) %>%
-  ggplot() +
-  geom_point(aes(x = i, y = val, col = below)) +
-  geom_errorbar(aes(x = i, ymin = lower, ymax = upper, col = below)) +
-  facet_wrap(~is_inside)
-
-stats %>%
-  do.call(rbind, .) %>%
-  dplyr::filter(n == tail(n_vec, 1), par == "s") %>%
-  dplyr::mutate(below = case_when(val < lower ~ TRUE, val > upper ~ FALSE, TRUE ~ NA)) %>%
-  ggplot() +
-  geom_point(aes(x = i, y = val, col = below)) +
-  geom_errorbar(aes(x = i, ymin = lower, ymax = upper, col = below)) +
-  facet_wrap(~is_inside)
 
 stats %>%
   do.call(rbind, .) %>%
@@ -183,7 +168,8 @@ stats %>%
   geom_col(aes(x = as.numeric(factor(n)), y = inclusion_percentage, fill = factor(n))) +
   facet_wrap(~par) +
   geom_hline(yintercept = .95) +
-  labs(fill = "n")
+  labs(fill = "n") +
+  coord_cartesian(y = c(.5, 1))
 # We care about the return periods, and we see that they get better and better!
 # We don't really care about the parameters!
 
@@ -200,8 +186,27 @@ stats %>%
   do.call(rbind, .) %>%
   dplyr::group_by(n) %>%
   dplyr::summarise(
+    loglik = mean(loglik),
+    true_loglik = mean(true_loglik),
+    gev_loglik = mean(gev_loglik),
+    gev_true_loglik = mean(gev_true_loglik))
+
+stats %>%
+  do.call(rbind, .) %>%
+  dplyr::group_by(par, n) %>%
+  dplyr::summarise(larger = mean(larger_than_the_truth)) %>%
+  dplyr::mutate(n = factor(n), par = factor(par)) %>%
+  ggplot() +
+  geom_col(aes(x = n, y = larger, fill = n)) +
+  facet_wrap(~par)
+
+stats %>%
+  do.call(rbind, .) %>%
+  dplyr::group_by(n) %>%
+  dplyr::summarise(
+    twcrps = base::mean(twcrps),
     stwcrps = base::mean(stwcrps),
     estwcrps = base::mean(estwcrps),
     etwcrps = base::mean(etwcrps))
-# Everything goes down, except the stwcrps. This kind of makes sense, I think.
+# Everything goes down, except the (s)twcrps. This kind of makes sense, I think.
 # The reason is that we are "overfitting" to the available data or something like that...
