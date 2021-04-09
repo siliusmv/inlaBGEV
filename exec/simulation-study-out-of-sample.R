@@ -144,7 +144,8 @@ res = parallel::mclapply(
           r25 = get_return_level_function(25),
           r50 = get_return_level_function(50)))
       # Compute scoring rules at all testing locations
-      joint_score = list()
+      joint_stwcrps = list()
+      joint_twcrps = list()
       joint_etwcrps = vector("numeric", n_leave_out_loc)
       joint_estwcrps = vector("numeric", n_leave_out_loc)
       for (j in seq_len(n_leave_out_loc)) {
@@ -152,14 +153,16 @@ res = parallel::mclapply(
         par = locspread_to_locscale(joint_pars$q[j, ], joint_pars$s[j, ],
                                     joint_pars$ξ[j, ], α, β)
         if (verbose) message(j)
-        joint_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        joint_stwcrps[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        joint_twcrps[[j]] = twcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
         etwcrps = expected_twcrps_bgev_gev(par$μ, par$σ, par$ξ, .9,
                                        μ_true = truth$μ, σ_true = truth$σ, ξ_true = truth$ξ)
         joint_etwcrps[j] = etwcrps
         S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
         joint_estwcrps[j] = etwcrps / S + log(S)
       }
-      joint_score = unlist(joint_score)
+      joint_stwcrps = unlist(joint_stwcrps)
+      joint_twcrps = unlist(joint_twcrps)
       # Test how good the interval estimates are
       res$inclusion$joint = lapply(
         c("q", "s", "ξ", "r10", "r25", "r50"),
@@ -170,7 +173,7 @@ res = parallel::mclapply(
             lower = joint_stats[[name]]$`2.5%`,
             upper = joint_stats[[name]]$`97.5%`,
             mean = joint_stats[[name]]$mean,
-            in_sample = location_indices > n_leave_out_loc,
+            in_sample = seq_len(n_loc) > n_leave_out_loc,
             n_σ = n_σ,
             model = "joint",
             stringsAsFactors = FALSE)
@@ -182,7 +185,8 @@ res = parallel::mclapply(
         do.call(rbind, .)
       # Return the mean of all the computed scores
       res$score$joint = data.frame(
-        score = base::mean(joint_score),
+        stwcrps = base::mean(joint_stwcrps),
+        twcrps = base::mean(joint_twcrps),
         etwcrps = base::mean(joint_etwcrps),
         estwcrps = base::mean(joint_estwcrps),
         model = "joint",
@@ -289,7 +293,8 @@ res = parallel::mclapply(
         r25 = get_return_level_function(25),
         r50 = get_return_level_function(50)))
     # Compute scoring rules at all testing locations
-    twostep_score = list()
+    twostep_stwcrps = list()
+    twostep_twcrps = list()
     twostep_etwcrps = vector("numeric", n_leave_out_loc)
     twostep_estwcrps = vector("numeric", n_leave_out_loc)
     for (j in seq_len(n_leave_out_loc)) {
@@ -297,14 +302,16 @@ res = parallel::mclapply(
       par = locspread_to_locscale(twostep_pars$q[j, ], twostep_pars$s[j, ],
                                   twostep_pars$ξ[j, ], α, β)
       if (verbose) message(j)
-      twostep_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+      twostep_stwcrps[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+      twostep_twcrps[[j]] = twcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
       etwcrps = expected_twcrps_bgev_gev(par$μ, par$σ, par$ξ, .9,
                                      μ_true = truth$μ, σ_true = truth$σ, ξ_true = truth$ξ)
       twostep_etwcrps[j] = etwcrps
       S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
       twostep_estwcrps[j] = etwcrps / S + log(S)
     }
-    twostep_score = unlist(twostep_score)
+    twostep_stwcrps = unlist(twostep_stwcrps)
+    twostep_twcrps = unlist(twostep_twcrps)
     # Test how good the interval estimates are
     res$inclusion$twostep = lapply(
       c("q", "s", "ξ", "r10", "r25", "r50"),
@@ -315,7 +322,7 @@ res = parallel::mclapply(
           lower = twostep_stats[[name]]$`2.5%`,
           upper = twostep_stats[[name]]$`97.5%`,
           mean = twostep_stats[[name]]$mean,
-          in_sample = location_indices > n_leave_out_loc,
+          in_sample = seq_len(n_loc) > n_leave_out_loc,
           n_σ = n_σ,
           model = "twostep",
           stringsAsFactors = FALSE)
@@ -327,7 +334,8 @@ res = parallel::mclapply(
       do.call(rbind, .)
     # Return the mean of all the computed scores
     res$score$twostep = data.frame(
-      score = base::mean(twostep_score),
+      stwcrps = base::mean(twostep_stwcrps),
+      twcrps = base::mean(twostep_twcrps),
       etwcrps = base::mean(twostep_etwcrps),
       estwcrps = base::mean(twostep_estwcrps),
       model = "twostep",
@@ -387,7 +395,8 @@ res = parallel::mclapply(
           r25 = get_return_level_function(25),
           r50 = get_return_level_function(50)))
       # Compute scoring rules at all locations
-      twostep_one_score = list()
+      twostep_one_stwcrps = list()
+      twostep_one_twcrps = list()
       twostep_one_etwcrps = vector("numeric", n_leave_out_loc)
       twostep_one_estwcrps = vector("numeric", n_leave_out_loc)
       for (j in seq_len(n_leave_out_loc)) {
@@ -395,14 +404,16 @@ res = parallel::mclapply(
         par = locspread_to_locscale(twostep_one_pars$q[j, ], twostep_one_pars$s[j, ],
                                     twostep_one_pars$ξ[j, ], α, β)
         if (verbose) message(j)
-        twostep_one_score[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        twostep_one_stwcrps[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
+        twostep_one_twcrps[[j]] = stwcrps_bgev(obs, par$μ, par$σ, par$ξ, .9)
         etwcrps = expected_twcrps_bgev_gev(par$μ, par$σ, par$ξ, .9,
                                        μ_true = truth$μ, σ_true = truth$σ, ξ_true = truth$ξ)
         twostep_one_etwcrps[j] = etwcrps
         S = expected_twcrps_bgev(par$μ, par$σ, par$ξ, .9)
         twostep_one_estwcrps[j] = etwcrps / S + log(S)
       }
-      twostep_one_score = unlist(twostep_one_score)
+      twostep_one_stwcrps = unlist(twostep_one_stwcrps)
+      twostep_one_twcrps = unlist(twostep_one_twcrps)
       # Test how good the interval estimates are
       res$inclusion$twostep_one = lapply(
         c("q", "s", "ξ", "r10", "r25", "r50"),
@@ -413,7 +424,7 @@ res = parallel::mclapply(
             lower = twostep_one_stats[[name]]$`2.5%`,
             upper = twostep_one_stats[[name]]$`97.5%`,
             mean = twostep_one_stats[[name]]$mean,
-            in_sample = location_indices > n_leave_out_loc,
+            in_sample = seq_len(n_loc) > n_leave_out_loc,
             n_σ = n_σ,
             model = "twostep_one",
             stringsAsFactors = FALSE)
@@ -425,7 +436,8 @@ res = parallel::mclapply(
         do.call(rbind, .)
       # Return the mean of all the computed scores
       res$score$twostep_one = data.frame(
-        score = base::mean(twostep_one_score),
+        stwcrps = base::mean(twostep_one_stwcrps),
+        twcrps = base::mean(twostep_one_twcrps),
         etwcrps = base::mean(twostep_one_etwcrps),
         estwcrps = base::mean(twostep_one_estwcrps),
         model = "twostep_one",
@@ -462,12 +474,23 @@ res = tmp
 
 res$score %>%
   dplyr::group_by(model) %>%
-  dplyr::summarise(score = base::mean(score),
+  dplyr::summarise(stwcrps = base::mean(stwcrps),
+                   stwcrps = base::mean(stwcrps),
                    etwcrps = base::mean(etwcrps),
                    estwcrps = base::mean(estwcrps))
 
-joint_score = dplyr::filter(res$score, model == "joint")$score
-twostep_score = dplyr::filter(res$score, model == "twostep")$score
+res$inclusion %>%
+  dplyr::group_by(name, model) %>%
+  dplyr::summarise(mse = base::mean(mse))
+
+res$score %>%
+  dplyr::group_by(model) %>%
+  dplyr::summarise(etwcrps = format(base::mean(etwcrps), digits = 6))
+
+
+nn = "etwcrps"
+joint_score = dplyr::filter(res$score, model == "joint")[[nn]]
+twostep_score = dplyr::filter(res$score, model == "twostep")[[nn]]
 diff_score = joint_score - twostep_score
 diff_bootstraps = vapply(
   1:10000,
@@ -475,9 +498,12 @@ diff_bootstraps = vapply(
   numeric(1))
 c(mean = mean(diff_bootstraps),
   quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
+# Significant difference between estwcrps of joint model and twostep model on the 5% level
+# Significant difference between etwcrps of joint model and twostep model on the 5% level
 
-joint_score = dplyr::filter(res$score, model == "joint")$score
-twostep_one_score = dplyr::filter(res$score, model == "twostep_one")$score
+nn = "etwcrps"
+joint_score = dplyr::filter(res$score, model == "joint")[[nn]]
+twostep_one_score = dplyr::filter(res$score, model == "twostep_one")[[nn]]
 diff_score = joint_score - twostep_one_score
 diff_bootstraps = vapply(
   1:10000,
@@ -485,33 +511,26 @@ diff_bootstraps = vapply(
   numeric(1))
 c(mean = mean(diff_bootstraps),
   quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
+# Not significant difference between estwcrps of joint model and twostep_one model on the 10% level
+# Significant difference between etwcrps of joint model and twostep_one model on the 10% level
 
-twostep_score = dplyr::filter(res$score, model == "twostep")$score
-twostep_one_score = dplyr::filter(res$score, model == "twostep_one")$score
-diff_score = twostep_score - twostep_one_score
-diff_bootstraps = vapply(
-  1:10000,
-  function(i) base::mean(sample(diff_score, length(diff_score), replace = TRUE)),
-  numeric(1))
-c(mean = mean(diff_bootstraps),
-  quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
 
 res$score %>%
-  tidyr::pivot_longer(c("score", "etwcrps", "estwcrps")) %>%
+  tidyr::pivot_longer(c("stwcrps", "twcrps", "etwcrps", "estwcrps")) %>%
   ggplot() +
   geom_point(aes(x = i, y = value, col = model)) +
   facet_wrap(~name, scales = "free_y")
 
 res$score %>%
-  tidyr::pivot_longer(c("score", "etwcrps", "estwcrps")) %>%
+  tidyr::pivot_longer(c("stwcrps", "twcrps", "etwcrps", "estwcrps")) %>%
   tidyr::pivot_wider(names_from = model) %>%
-  dplyr::mutate(diff = joint - twostep) %>%
+  dplyr::mutate(diff = joint - twostep_one) %>%
   ggplot() +
   geom_point(aes(x = i, y = diff)) +
   facet_wrap(~name)
 
 res$score %>%
-  tidyr::pivot_longer(c("score", "etwcrps", "estwcrps")) %>%
+  tidyr::pivot_longer(c("stwcrps", "twcrps", "etwcrps", "estwcrps")) %>%
   tidyr::pivot_wider(names_from = model) %>%
   dplyr::mutate(diff = joint - twostep) %>%
   dplyr::group_by(name) %>%
@@ -526,23 +545,19 @@ time_stats = res$time %>%
 base::print(time_stats)
 
 percentages = res$inclusion %>%
-  dplyr::group_by(name, n_σ, model, in_sample) %>%
+  dplyr::group_by(name, model, in_sample) %>%
   dplyr::mutate(percentage = base::mean(included)) %>%
-  dplyr::select(name, n_σ, model, percentage, in_sample) %>%
+  dplyr::select(name, model, percentage, in_sample) %>%
   dplyr::slice(1)
 
 ggplot(percentages) +
   geom_col(aes(x = name, y = percentage, fill = model), position = "dodge") +
-  facet_wrap(~n_σ + in_sample) +
-  geom_hline(yintercept = .95)
+  facet_wrap(~in_sample) +
+  geom_hline(yintercept = .95) +
+  coord_cartesian(y = c(.8, 1))
 
-message("joint inclusion stats")
-dplyr::filter(res$inclusion, model == "joint") %>%
-  dplyr::group_by(in_sample, name) %>%
-  dplyr::summarise(percentage = base::mean(included)) %>%
-  base::print()
-message("twostep inclusion stats")
-dplyr::filter(res$inclusion, model == "twostep") %>%
-  dplyr::group_by(in_sample, name) %>%
+message("inclusion stats")
+dplyr::filter(res$inclusion) %>%
+  dplyr::group_by(model, name) %>%
   dplyr::summarise(percentage = base::mean(included)) %>%
   base::print()
