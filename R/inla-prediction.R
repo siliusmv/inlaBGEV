@@ -1,3 +1,153 @@
+
+#' @export
+inla_bgev_pars = function(coeffs, X = NULL, s_covariate_names = NULL) {
+  # Add an intercept to X
+  X = cbind(intercept = 1, X)
+
+  # Compute q
+  no_q_covariates = is.null(dim(coeffs$q))
+  if (no_q_covariates) {
+    q = coeffs$q
+  } else {
+    q_covariate_names = rownames(coeffs$q)
+    q = X[, q_covariate_names, drop = FALSE] %*% coeffs$q
+  }
+
+  # Does the dimension of s agree with the number of covariate_names?
+  no_s_covariates = is.null(dim(coeffs$s))
+  if (no_s_covariates) {
+    correct_s_dim = is.null(dim(coeffs$s))
+  } else {
+    correct_s_dim = length(s_covariate_names) == nrow(coeffs$s) - 1
+  }
+  if (!correct_s_dim) stop("The dimension of the spread is wrong")
+  # Compute s
+  if (no_s_covariates) {
+    s = coeffs$s
+  } else {
+    s = X[, "intercept", drop = FALSE] %*% coeffs$s[1, ] *
+      exp(X[, s_covariate_names, drop = FALSE] %*% coeffs$s[-1, , drop = FALSE])
+  }
+
+  # We only want to deal with a ξ with no covariates
+  correct_ξ_dim = is.null(dim(coeffs$ξ))
+  if (!correct_ξ_dim) stop("We don't accept covariates in ξ")
+  # Compute ξ
+  ξ = coeffs$ξ
+
+  list(q = q, s = s, ξ = ξ)
+}
+
+add_spde_samples = function(par, samples, mesh) {
+  
+}
+
+#' @export
+inla_bgev_pars2 = function(samples,
+                          X,
+                          data,
+                          covariate_names,
+                          s_est = NULL,
+                          fun = NULL,
+                          mesh = NULL,
+                          coords = NULL) {
+
+  ## Extract design matrix
+  #X = dplyr::select(data, tidyselect::all_of(unique(unlist(covariate_names)))) %>%
+  #  dplyr::distinct(.keep_all = TRUE)
+  #if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
+  #X = cbind(intercept = 1, as.matrix(X))
+
+  # Extract all coefficients from the samples
+  coeffs = inla_bgev_coeffs(samples, covariate_names)
+
+  # Compute parameters at all locations and for all samples
+  q = matrix(X[, c("intercept", covariate_names[[1]])], nrow = nrow(X)) %*% coeffs$q
+  if (is.null(dim(coeffs$s))) {
+    s = matrix(rep(coeffs$s, each = nrow(X)), ncol = length(samples))
+  } else {
+    s = matrix(X[, "intercept"], nrow = nrow(X)) %*% coeffs$s[1, ] *
+      exp(matrix(X[, covariate_names[[2]]], nrow = nrow(X)) %*% coeffs$s[-1, ])
+  }
+  ξ = matrix(rep(coeffs$ξ, each = nrow(X)), ncol = length(samples))
+
+  # If there is a spatial Gaussian field in the model, sample from it
+  # and add it to the location parameter
+  is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
+  if (is_matern_field) q = q + inla_sample_matern_field(samples, mesh, coords)
+  #if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
+
+  # If the response had been standardised, compute un-standardised parameters
+  if (!is.null(s_est)) {
+    s = s * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    q = q * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    #matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
+  }
+
+  pars = list(q = q, s = s, ξ = ξ)
+  # Compute some function of the sampled parameters, e.g. return level
+  if (!is.null(fun)) {
+    if (is.function(fun)) {
+      pars$fun = matrix(fun(pars), nrow = nrow(X))
+    } else {
+      for (j in seq_along(fun)) {
+        pars[[names(fun)[j]]] = matrix(fun[[j]](pars), nrow = nrow(X))
+      }
+    }
+  }
+  pars
+}
+
+
+
+#' @export
+inla_bgev_coeffs = function(samples) {
+  contents = attributes(samples)$.contents
+  q_index = contents$start[-c(1, 2)]
+  q_samples = sapply(samples, function(s) s$latent[q_index])
+  if (!is.null(dim(q_samples))) rownames(q_samples) = contents$tag[-c(1, 2)]
+  ξ_indx = grep("tail", names(samples[[1]]$hyperpar))
+  ξ_samples = sapply(samples, function(s) s$hyperpar[ξ_indx])
+  s_indx = grep("spread", names(samples[[1]]$hyperpar))
+  s_samples = sapply(samples, function(s) s$hyperpar[s_indx])
+  list(q = q_samples, s = s_samples, ξ = ξ_samples)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #' @export
 inla_stats = function(sample_list,
                       data,
@@ -133,74 +283,6 @@ inla_gaussian_pars = function(samples,
     }
   }
   pars
-}
-
-#' @export
-inla_bgev_pars = function(samples,
-                          data,
-                          covariate_names,
-                          s_est = NULL,
-                          fun = NULL,
-                          mesh = NULL,
-                          coords = NULL) {
-
-  # Extract design matrix
-  X = dplyr::select(data, tidyselect::all_of(unique(unlist(covariate_names)))) %>%
-    dplyr::distinct(.keep_all = TRUE)
-  if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
-  X = cbind(intercept = 1, as.matrix(X))
-
-  # Extract all coefficients from the samples
-  coeffs = inla_bgev_coeffs(samples, covariate_names)
-
-  # Compute parameters at all locations and for all samples
-  q = matrix(X[, c("intercept", covariate_names[[1]])], nrow = nrow(X)) %*% coeffs$q
-  if (is.null(dim(coeffs$s))) {
-    s = matrix(rep(coeffs$s, each = nrow(X)), ncol = length(samples))
-  } else {
-    s = matrix(X[, "intercept"], nrow = nrow(X)) %*% coeffs$s[1, ] *
-      exp(matrix(X[, covariate_names[[2]]], nrow = nrow(X)) %*% coeffs$s[-1, ])
-  }
-  ξ = matrix(rep(coeffs$ξ, each = nrow(X)), ncol = length(samples))
-
-  # If there is a spatial Gaussian field in the model, sample from it
-  # and add it to the location parameter
-  is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
-  if (is_matern_field) q = q + inla_sample_matern_field(samples, mesh, coords)
-  #if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
-
-  # If the response had been standardised, compute un-standardised parameters
-  if (!is.null(s_est)) {
-    s = s * matrix(rep(s_est, length(samples)), ncol = length(samples))
-    q = q * matrix(rep(s_est, length(samples)), ncol = length(samples))
-    #matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
-  }
-
-  pars = list(q = q, s = s, ξ = ξ)
-  # Compute some function of the sampled parameters, e.g. return level
-  if (!is.null(fun)) {
-    if (is.function(fun)) {
-      pars$fun = matrix(fun(pars), nrow = nrow(X))
-    } else {
-      for (j in seq_along(fun)) {
-        pars[[names(fun)[j]]] = matrix(fun[[j]](pars), nrow = nrow(X))
-      }
-    }
-  }
-  pars
-}
-
-inla_bgev_coeffs = function(samples, covariate_names) {
-  contents = attributes(samples)$.contents
-  q_covariates = c("intercept", covariate_names[[1]])
-  q_indx = sapply(q_covariates, function(cov) which(contents$tag == cov))
-  q_start = contents$start[q_indx]
-  q_samples = sapply(samples, function(s) s$latent[q_start])
-  ξ_indx = grep("tail", names(samples[[1]]$hyperpar))
-  ξ_samples = sapply(samples, function(s) s$hyperpar[ξ_indx])
-  s_indx = grep("spread", names(samples[[1]]$hyperpar))
-  s_samples = sapply(samples, function(s) s$hyperpar[s_indx])
-  list(q = q_samples, s = s_samples, ξ = ξ_samples)
 }
 
 inla_gaussian_coeffs = function(samples, covariate_names) {
