@@ -92,6 +92,7 @@ inla_bgev = function(data,
                      diagonal = "NULL",
                      α = .5,
                      β = .8,
+                     λ = 7,
                      ...) {
   # In case data is only a vector
   if (is.vector(data)) {
@@ -136,7 +137,7 @@ inla_bgev = function(data,
   hyper = inla_spread_prior(spread_par, spread_precision)
 
   # Create a prior for the tail parameter
-  hyper$tail = inla_tail_prior(lims = c(0, .5), λ = 7)
+  hyper$tail = inla_tail_prior(lims = c(0, .5), λ = λ)
 
   # Create the formula needed by R-INLA
   if (is.null(spde)) {
