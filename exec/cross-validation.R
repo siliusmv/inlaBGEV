@@ -383,9 +383,9 @@ df = lapply(
       base::mean(unlist(stats[[i]]$out_of_sample_twostep)),
       base::mean(unlist(stats[[i]]$out_of_sample_twostep_one)),
       base::mean(unlist(stats[[i]]$in_sample_joint)),
-      base::mean(unlist(stats[[i]]$in_sample_twostep),
-      base::mean(unlist(stats[[i]]$in_sample_twostep_one))))
-    best_indx = c(1, 3) + as.numeric(res[c(2, 4)] < res[c(1, 3)])
+      base::mean(unlist(stats[[i]]$in_sample_twostep)),
+      base::mean(unlist(stats[[i]]$in_sample_twostep_one)))
+    best_indx = c(0, 3) + c(which.min(res[1:3]), which.min(res[4:6]))
     res = format(res, digits = 3)
     res[best_indx] = paste0("\\bm{", res[best_indx], "}")
     res = paste0("\\(", res, "\\)")

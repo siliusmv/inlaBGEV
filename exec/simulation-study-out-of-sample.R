@@ -483,23 +483,50 @@ res$inclusion %>%
   dplyr::group_by(name, model) %>%
   dplyr::summarise(mse = base::mean(mse))
 
+res$inclusion %>%
+  dplyr::mutate(CI_width = upper - lower) %>%
+  dplyr::group_by(name, model) %>%
+  dplyr::summarise(mean(CI_width))
+
 res$score %>%
   dplyr::group_by(model) %>%
-  dplyr::summarise(etwcrps = format(base::mean(etwcrps), digits = 6))
-
+  dplyr::summarise(
+    twcrps = format(base::mean(twcrps), digits = 6),
+    stwcrps = format(base::mean(stwcrps), digits = 6),
+    etwcrps = format(base::mean(etwcrps), digits = 6),
+    estwcrps = format(base::mean(estwcrps), digits = 6))
 
 nn = "etwcrps"
 joint_score = dplyr::filter(res$score, model == "joint")[[nn]]
 twostep_score = dplyr::filter(res$score, model == "twostep")[[nn]]
 diff_score = joint_score - twostep_score
+#c(mean = mean(diff_score), quantile(diff_score, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
 diff_bootstraps = vapply(
   1:10000,
   function(i) base::mean(sample(diff_score, length(diff_score), replace = TRUE)),
   numeric(1))
 c(mean = mean(diff_bootstraps),
   quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
-# Significant difference between estwcrps of joint model and twostep model on the 5% level
 # Significant difference between etwcrps of joint model and twostep model on the 5% level
+
+nn = "etwcrps"
+joint_score = dplyr::filter(res$score, model == "joint")[[nn]]
+twostep_score = dplyr::filter(res$score, model == "twostep")[[nn]]
+diff_score = joint_score - twostep_score
+#c(mean = mean(diff_score), quantile(diff_score, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
+permutation_diffs = vapply(
+  1:100000,
+  function(i) {
+    indx = sample(c(0, 1), length(diff_score), replace = TRUE)
+    v1 = c(joint_score[indx == 1], twostep_score[indx == 0])
+    v2 = c(twostep_score[indx == 1], joint_score[indx == 0])
+    mean(v1 - v2)
+  },
+  numeric(1))
+mean(abs(permutation_diffs) > abs(mean(diff_score)))
+
+
+
 
 nn = "etwcrps"
 joint_score = dplyr::filter(res$score, model == "joint")[[nn]]
@@ -511,31 +538,12 @@ diff_bootstraps = vapply(
   numeric(1))
 c(mean = mean(diff_bootstraps),
   quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
-# Not significant difference between estwcrps of joint model and twostep_one model on the 10% level
-# Significant difference between etwcrps of joint model and twostep_one model on the 10% level
-
 
 res$score %>%
   tidyr::pivot_longer(c("stwcrps", "twcrps", "etwcrps", "estwcrps")) %>%
   ggplot() +
   geom_point(aes(x = i, y = value, col = model)) +
   facet_wrap(~name, scales = "free_y")
-
-res$score %>%
-  tidyr::pivot_longer(c("stwcrps", "twcrps", "etwcrps", "estwcrps")) %>%
-  tidyr::pivot_wider(names_from = model) %>%
-  dplyr::mutate(diff = joint - twostep_one) %>%
-  ggplot() +
-  geom_point(aes(x = i, y = diff)) +
-  facet_wrap(~name)
-
-res$score %>%
-  tidyr::pivot_longer(c("stwcrps", "twcrps", "etwcrps", "estwcrps")) %>%
-  tidyr::pivot_wider(names_from = model) %>%
-  dplyr::mutate(diff = joint - twostep) %>%
-  dplyr::group_by(name) %>%
-  dplyr::summarise(summ = list(summary(diff))) %>%
-  dplyr::pull(summ)
 
 time_stats = res$time %>%
   dplyr::group_by(model) %>%
