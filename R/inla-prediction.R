@@ -176,10 +176,16 @@ inla_bgev_pars = function(samples,
   if (!is.null(s_est)) {
     s = s * matrix(rep(s_est, length(samples)), ncol = length(samples))
     q = q * matrix(rep(s_est, length(samples)), ncol = length(samples))
-    matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    if (is_matern_field) {
+      matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    }
   }
 
-  pars = list(q = q, s = s, ξ = ξ, matern = matern)
+  if (is_matern_field) {
+    pars = list(q = q, s = s, ξ = ξ, matern = matern)
+  } else {
+    pars = list(q = q, s = s, ξ = ξ)
+  }
   # Compute some function of the sampled parameters, e.g. return level
   if (!is.null(fun)) {
     if (is.function(fun)) {

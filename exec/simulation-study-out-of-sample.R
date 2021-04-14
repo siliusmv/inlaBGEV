@@ -131,7 +131,7 @@ res = parallel::mclapply(
     # Estimate parameters, return levels and compute scoring rules, if INLA did not crash
     if (!is.null(joint_res)) {
       # Sample from the estimated posterior
-      joint_samples = INLA::inla.posterior.sample(1000, joint_res, seed = 1)
+      joint_samples = INLA::inla.posterior.sample(500, joint_res, seed = 1)
       # Use the samples to compute estimated parameters and return levels at all locations
       joint_pars = inla_bgev_pars(
         samples = joint_samples,
@@ -248,7 +248,7 @@ res = parallel::mclapply(
     # Use each of these realisations for standardising the response and performing inference
     # with INLA
     twostep_time = proc.time()
-    num_samples = 1000 / B
+    num_samples = 500 / B
     samples = list()
     s_vals = list()
     sd_res = do.call(inla, sd_inla_args)
@@ -398,7 +398,7 @@ res = parallel::mclapply(
     # Estimate parameters, return levels and compute scoring rules, if INLA did not crash
     if (!is.null(twostep_one_res)) {
       # Sample from the estimated posterior
-      twostep_one_samples = INLA::inla.posterior.sample(1000, twostep_one_res, seed = 1)
+      twostep_one_samples = INLA::inla.posterior.sample(500, twostep_one_res, seed = 1)
       # Use the samples to compute estimated parameters and return levels at all locations
       twostep_one_stats = inla_stats(
         sample_list = list(twostep_one_samples),
@@ -497,7 +497,6 @@ res = parallel::mclapply(
     res
   })
 
-ras = res
 saveRDS(res, file.path(here::here(), "results", "simulation-out-of-sample-more-complex-scale.rds"))
 
 tmp = list()
@@ -510,7 +509,6 @@ res = tmp
 res$score %>%
   dplyr::group_by(model) %>%
   dplyr::summarise(stwcrps = base::mean(stwcrps),
-                   stwcrps = base::mean(stwcrps),
                    etwcrps = base::mean(etwcrps),
                    estwcrps = base::mean(estwcrps))
 
@@ -524,7 +522,7 @@ res$inclusion %>%
   dplyr::summarise(mean(CI_width))
 
 res$score %>%
-  dplyr::group_by(model) %>%
+  dplyr::group_by(n_σ, model) %>%
   dplyr::summarise(
     twcrps = format(base::mean(twcrps), digits = 6),
     stwcrps = format(base::mean(stwcrps), digits = 6),
@@ -574,12 +572,6 @@ diff_bootstraps = vapply(
 c(mean = mean(diff_bootstraps),
   quantile(diff_bootstraps, c(0, .025, .05, .25, .5, .75, .95, .975, 1)))
 
-res$score %>%
-  tidyr::pivot_longer(c("stwcrps", "twcrps", "etwcrps", "estwcrps")) %>%
-  ggplot() +
-  geom_point(aes(x = i, y = value, col = model)) +
-  facet_wrap(~name, scales = "free_y")
-
 time_stats = res$time %>%
   dplyr::group_by(model) %>%
   dplyr::summarise(mean_time = base::mean(time),
@@ -611,7 +603,7 @@ table = dplyr::filter(res$inclusion) %>%
   dplyr::summarise(percentage = base::mean(included)) %>%
   dplyr::filter(model != "twostep_one") %>%
   tidyr::pivot_wider(values_from = percentage) %>%
-  .[c(1, 7, 9, 8, 3, 6, 4)] %>%
+  .[c(1, 9, 11, 10, 3, 6, 4, 7)] %>%
   as.matrix()
 table[, -1] = paste0("\\(", format(as.numeric(table[, -1]) * 100, digits = 3), "\\%\\)")
 table = sapply(seq_len(nrow(table)), function(i) c(paste(table[i, ], collapse = " & "), "\\\\\n"))
