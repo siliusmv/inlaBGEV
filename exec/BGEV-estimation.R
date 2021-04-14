@@ -171,7 +171,7 @@ pq = stats[[1]]$q %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
-pq[[1]] = pq[[1]] + labs(title = "1 hour precipitation", fill = "Posterior mean $q_\\alpha$")
+pq[[1]] = pq[[1]] + labs(title = "1 hour precipitation", fill = "$q_\\alpha$")
 
 my_breaks = c(1.5, 1.8, 2.1, 2.4, 2.7)
 ps = stats[[1]]$s %>%
@@ -179,68 +179,91 @@ ps = stats[[1]]$s %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
-ps[[1]] = ps[[1]] + labs(fill = "Posterior mean $s_\\beta$")
+ps[[1]] = ps[[1]] + labs(fill = "$s_\\beta$")
 #ps[[1]] = ps[[1]] + labs(title = "1 hour precipitation, $s_\\beta$")
 
 p1 = pq[[1]] + ps[[1]]
 
-stop("Continue with this when you have more time!")
+my_breaks = c(15, 20, 25, 30, 35)
 pq = stats[[2]]$q %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
-pq[[1]] = pq[[1]] + labs(title = "3 hour precipitation", fill = "Posterior mean $q_\\alpha$")
+pq[[1]] = pq[[1]] + labs(title = "3 hour precipitation", fill = "$q_\\alpha$")
 
+my_breaks = c(2, 2.5, 3, 3.5, 4)
 ps = stats[[2]]$s %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
-ps[[1]] = ps[[1]] + labs(fill = "Posterior mean $s_\\beta$")
+ps[[1]] = ps[[1]] + labs(fill = "$s_\\beta$")
 
 p2 = pq[[1]] + ps[[1]]
 
+my_breaks = c(20, 30, 40, 50, 60)
 pq = stats[[3]]$q %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
-pq[[1]] = pq[[1]] + labs(title = "6 hour precipitation", fill = "Posterior mean $q_\\alpha$")
+pq[[1]] = pq[[1]] + labs(title = "6 hour precipitation", fill = "$q_\\alpha$")
 
+my_breaks = c(3, 4, 5, 6, 7)
 ps = stats[[3]]$s %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
-ps[[1]] = ps[[1]] + labs(fill = "Posterior mean $s_\\beta$")
+ps[[1]] = ps[[1]] + labs(fill = "$s_\\beta$")
 
 p3 = pq[[1]] + ps[[1]]
 
-text_size = 8
-myplot = patchwork::wrap_plots(p1, p2, p3, nrow = 3) *
-  theme(text = element_text(size = text_size))
+text_size = 12
+myplot = patchwork::wrap_plots(
+  p1 * theme(text = element_text(size = text_size)),
+  p2 * theme(text = element_text(size = text_size)),
+  p3 * theme(text = element_text(size = text_size)),
+  nrow = 3)
 
 tikz_plot(file.path(here::here(), "results", "BGEV-parameter-maps.pdf"),
-          myplot, width = 7, height = 10, view = TRUE)
+          myplot, width = 6, height = 10, view = TRUE)
 
 
 # Tail parameter summary =========================
 
-stop("You should make a latex-friendly table to copy directly to the article!")
+table = NULL
 for (i in seq_along(hour_vec)) {
   message(paste(hour_vec[i], "hour ξ:"))
   print(stats[[i]]$ξ)
+  table[i] = stats[[i]]$ξ[c(1, 3, 5, 7)] %>%
+    format(digits = 2) %>%
+    paste0("\\(", ., "\\)", collapse = " & ")
+  table[i] = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"), "&", table[i], "\\\\\n")
 }
+cat(unlist(table))
 
 
 # Range summary =========================
+table = NULL
 for (i in seq_along(hour_vec)) {
   message(paste(hour_vec[i], "hour ρ:"))
   print(stats[[i]]$ρ)
+  table[i] = stats[[i]]$ρ[c(1, 3, 5, 7)] %>%
+    format(digits = 2) %>%
+    paste0("\\(", ., "\\)", collapse = " & ")
+  table[i] = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"), "&", table[i], "\\\\\n")
 }
+cat(unlist(table))
 
+table = NULL
 for (i in seq_along(hour_vec)) {
   message(paste(hour_vec[i], "hour sd_ρ:"))
   print(stats[[i]]$sd_ρ)
+  table[i] = stats[[i]]$sd_ρ[c(1, 3, 4, 5)] %>%
+    format(digits = 2) %>%
+    paste0("\\(", ., "\\)", collapse = " & ")
+  table[i] = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"), "&", table[i], "\\\\\n")
 }
+cat(unlist(table))

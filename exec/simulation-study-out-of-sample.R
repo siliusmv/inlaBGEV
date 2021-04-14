@@ -562,10 +562,22 @@ ggplot(percentages) +
   geom_col(aes(x = name, y = percentage, fill = model), position = "dodge") +
   facet_wrap(~in_sample) +
   geom_hline(yintercept = .95) +
-  coord_cartesian(y = c(.8, 1))
+  coord_cartesian(y = c(.5, 1))
 
 message("inclusion stats")
 dplyr::filter(res$inclusion) %>%
   dplyr::group_by(model, name) %>%
   dplyr::summarise(percentage = base::mean(included)) %>%
   base::print()
+
+# Create a table of inclusion percentages
+table = dplyr::filter(res$inclusion) %>%
+  dplyr::group_by(model, name) %>%
+  dplyr::summarise(percentage = base::mean(included)) %>%
+  dplyr::filter(model != "twostep_one") %>%
+  tidyr::pivot_wider(values_from = percentage) %>%
+  .[c(1, 7, 9, 8, 3, 6, 4)] %>%
+  as.matrix()
+table[, -1] = paste0("\\(", format(as.numeric(table[, -1]) * 100, digits = 3), "\\%\\)")
+table = sapply(seq_len(nrow(table)), function(i) c(paste(table[i, ], collapse = " & "), "\\\\\n"))
+cat(table)
