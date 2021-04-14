@@ -13,8 +13,8 @@ hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
-n_sd_samples = 1 # Number of samples drawn from the distribution of the SD
-num_cores = 1 # Number of cores used for parallel computations
+n_sd_samples = 100 # Number of samples drawn from the distribution of the SD
+num_cores = 25 # Number of cores used for parallel computations
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),

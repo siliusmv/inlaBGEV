@@ -38,11 +38,19 @@ n = 1500 # Number of samples
 n_loc = 250 # Number of "locations" that the data are sampled from
 n_leave_out_loc = 50 # Number of locations that are only used for testing
 α = .5; β = .8 # Probabilities used in the location and spread parameters
-n_trials = 300 # Number of times to perform the simulation study
+n_trials = 200 # Number of times to perform the simulation study
 block_size = 24 * 365 # The size of a block
 num_cores = 25 # Number of cores for parallelisation
 B = 100 # The number of bootstraps used in the two-step model for estimating s^*
 verbose = FALSE # Print a lot of progress messages?
+
+#n = 1500
+#n_loc = 50
+#n_leave_out_loc = 5
+#n_trials = 3
+#num_cores = 3
+#verbose = TRUE
+#B = 5
 
 # Set a seed that works when doing parallelisation
 set.seed(1, kind = "L'Ecuyer-CMRG")
@@ -59,7 +67,7 @@ res = parallel::mclapply(
       time = list())
 
     # Sample ξ and the regression coefficients for σ for every single observation
-    n_σ = sample.int(4, 1)
+    n_σ = sample.int(4, 1) + 4
     σ_coeffs = c(runif(1, 1, 3), rnorm(n_σ, 0, .2)) / 10
     ξ = rep(runif(1, .01, .4), n_loc)
     covariate_names = list(NULL, paste0("σ_", seq_len(n_σ)), NULL)
@@ -99,6 +107,8 @@ res = parallel::mclapply(
     truth$r10 = return_level_bgev(10, truth$μ, truth$σ, ξ)
     truth$r25 = return_level_bgev(25, truth$μ, truth$σ, ξ)
     truth$r50 = return_level_bgev(50, truth$μ, truth$σ, ξ)
+    truth$r100 = return_level_bgev(100, truth$μ, truth$σ, ξ)
+    truth$r500 = return_level_bgev(500, truth$μ, truth$σ, ξ)
 
     # ==========================================================================
     # Evaluate the performance of the joint model
@@ -129,8 +139,12 @@ res = parallel::mclapply(
         covariate_names = covariate_names,
         s_est = rep(joint_res$standardising_const, n_loc),
         fun = list(
+	  μ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$μ,
+	  σ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$σ,
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
+          r100 = get_return_level_function(100),
+          r500 = get_return_level_function(500),
           r50 = get_return_level_function(50)))
       # Use the samples to compute estimated parameters and return levels statistics at all locations
       joint_stats = inla_stats(
@@ -140,8 +154,12 @@ res = parallel::mclapply(
         s_list = list(rep(joint_res$standardising_const, n_loc)),
         verbose = verbose,
         fun = list(
+	  μ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$μ,
+	  σ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$σ,
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
+          r100 = get_return_level_function(100),
+          r500 = get_return_level_function(500),
           r50 = get_return_level_function(50)))
       # Compute scoring rules at all testing locations
       joint_stwcrps = list()
@@ -165,7 +183,7 @@ res = parallel::mclapply(
       joint_twcrps = unlist(joint_twcrps)
       # Test how good the interval estimates are
       res$inclusion$joint = lapply(
-        c("q", "s", "ξ", "r10", "r25", "r50"),
+        c("μ", "σ", "q", "s", "ξ", "r10", "r25", "r50", "r100", "r500"),
         function(name) {
           res = data.frame(
             name = name,
@@ -278,8 +296,12 @@ res = parallel::mclapply(
       covariate_names = covariate_names,
       s_list = s_vals,
       fun = list(
+	  μ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$μ,
+	  σ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$σ,
         r10 = get_return_level_function(10),
         r25 = get_return_level_function(25),
+        r100 = get_return_level_function(100),
+          r500 = get_return_level_function(500),
         r50 = get_return_level_function(50)))
     # Use the samples to compute estimated parameters and return levels statistics at all locations
     twostep_stats = inla_stats(
@@ -289,8 +311,12 @@ res = parallel::mclapply(
       s_list = s_vals,
       verbose = verbose,
       fun = list(
+	  μ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$μ,
+	  σ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$σ,
         r10 = get_return_level_function(10),
         r25 = get_return_level_function(25),
+        r100 = get_return_level_function(100),
+          r500 = get_return_level_function(500),
         r50 = get_return_level_function(50)))
     # Compute scoring rules at all testing locations
     twostep_stwcrps = list()
@@ -314,7 +340,7 @@ res = parallel::mclapply(
     twostep_twcrps = unlist(twostep_twcrps)
     # Test how good the interval estimates are
     res$inclusion$twostep = lapply(
-      c("q", "s", "ξ", "r10", "r25", "r50"),
+      c("μ", "σ", "q", "s", "ξ", "r10", "r25", "r50", "r100", "r500"),
       function(name) {
         res = data.frame(
           name = name,
@@ -381,8 +407,12 @@ res = parallel::mclapply(
         s_list = list(twostep_one_res$standardising_const * sd_samples),
         verbose = verbose,
         fun = list(
+	  μ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$μ,
+	  σ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$σ,
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
+          r100 = get_return_level_function(100),
+          r500 = get_return_level_function(500),
           r50 = get_return_level_function(50)))
       # Use the samples to compute estimated parameters and return levels statistics at all locations
       twostep_one_pars = inla_bgev_pars(
@@ -391,8 +421,12 @@ res = parallel::mclapply(
         covariate_names = covariate_names,
         s_est = twostep_one_res$standardising_const * sd_samples,
         fun = list(
+	  μ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$μ,
+	  σ = function(pars) locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)$σ,
           r10 = get_return_level_function(10),
           r25 = get_return_level_function(25),
+          r100 = get_return_level_function(100),
+          r500 = get_return_level_function(500),
           r50 = get_return_level_function(50)))
       # Compute scoring rules at all locations
       twostep_one_stwcrps = list()
@@ -416,7 +450,7 @@ res = parallel::mclapply(
       twostep_one_twcrps = unlist(twostep_one_twcrps)
       # Test how good the interval estimates are
       res$inclusion$twostep_one = lapply(
-        c("q", "s", "ξ", "r10", "r25", "r50"),
+        c("μ", "σ", "q", "s", "ξ", "r10", "r25", "r50", "r100", "r500"),
         function(name) {
           res = data.frame(
             name = name,
@@ -463,7 +497,8 @@ res = parallel::mclapply(
     res
   })
 
-saveRDS(res, file.path(here::here(), "results", "simulation-out-of-sample.rds"))
+ras = res
+saveRDS(res, file.path(here::here(), "results", "simulation-out-of-sample-more-complex-scale.rds"))
 
 tmp = list()
 for (n in names(res[[1]])) {
