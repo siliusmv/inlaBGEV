@@ -325,6 +325,13 @@ res$score %>%
 # meaning that we are in some way overfitting
 
 
+res$inclusion %>%
+  ggplot() +
+  #geom_point(aes(x = as.numeric(factor(n)), y = mse, col = factor(n))) +
+  geom_jitter(aes(x = factor(model), y = mse, col = factor(model)), height = 0, width = .1) +
+  facet_wrap(~name, scales = "free_y") +
+  labs(col = "model")
+
 score_stats = res$score %>%
   dplyr::group_by(model, i) %>%
   dplyr::summarise(score = base::mean(score), n_σ = unique(n_σ)) %>%

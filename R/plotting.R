@@ -17,16 +17,18 @@ plot_stats = function(x, grid = TRUE,
     gg2 = gg2 +
       geom_sf(data = dplyr::distinct(observations, id), col = "red", size = .01, alpha = .5)
   }
-  gg1 = style_map_plot(gg1, data, use_tex, ...)
-  gg2 = style_map_plot(gg2, data, use_tex, ...)
-  gg1 = gg1 + labs(fill = "Posterior mean")
-  if (use_tex) {
-    gg2 = gg2 +
-      labs(fill = paste0("Posterior $", as.character((upper - lower) * 100), "\\%$\nCI width"))
-  } else {
-    gg2 = gg2 +
-      labs(fill = paste0("Posterior ", as.character((upper - lower) * 100), "%\nCI width"))
-  }
+  gg1 = style_map_plot(gg1, x, use_tex, ...)
+  gg2 = style_map_plot(gg2, x, use_tex, ...)
+  #gg1 = gg1 + labs(fill = "Posterior mean")
+  gg1 = gg1 + labs(fill = "PM")
+  #if (use_tex) {
+  #  gg2 = gg2 +
+  #    labs(fill = paste0("Posterior $", as.character((upper - lower) * 100), "\\%$\nCI width"))
+  #} else {
+  #  gg2 = gg2 +
+  #    labs(fill = paste0("Posterior ", as.character((upper - lower) * 100), "%\nCI width"))
+  #}
+  gg2 = gg2 + labs(fill = "WCI")
   if (!axis_text) {
     gg1 = gg1 + theme(axis.text = element_blank(), axis.ticks = element_blank())
     gg2 = gg2 + theme(axis.text = element_blank(), axis.ticks = element_blank())

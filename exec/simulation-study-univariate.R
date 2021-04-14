@@ -5,44 +5,6 @@ library(inlaBGEV)
 library(parallel)
 
 
-#mle_bgev = function(x, p_a = .1, p_b = .2) {
-#  f = function(par, x) {
-#    res = -sum(dbgev(x, par[1], par[2], par[3], p_a, p_b, log = TRUE))
-#    if (is.infinite(res)) res = 99999999 * sign(res)
-#    res
-#  }
-#  optim(c(0, 1, .1), fn = f, lower = c(-100, .00001, .00001), upper = c(100, 100, .5),
-#        method = "L-BFGS-B", x = x)
-#}
-
-# set.seed(7)
-# q = 2.3
-# s = 1
-# ξ = .23
-# α = .5
-# β = .8
-# locscale_pars = locspread_to_locscale(q, s, ξ, α, β)
-# μ = locscale_pars$μ; σ = locscale_pars$σ
-# y = rgev(10000, μ, σ, ξ)
-# standardising_const = diff(quantile(y, c(.05, .95)))
-# y = y / standardising_const
-# mdata = inla.mdata(y, matrix(0, length(y), 0), matrix(0, length(y), 0))
-# 
-# r = inla(
-#   formula = mdata ~ -1 + intercept,
-#   data = data.frame(intercept = 1),
-#   control.family = list(control.bgev = list(q.location = α, q.spread = β)),
-#   family = "bgev")
-# summary(r)$hyper
-# truth = data.frame(q = q / standardising_const, s = s / standardising_const, ξ = ξ)
-# rownames(truth) = NULL
-# truth
-
-#r2 = mle_bgev(y)
-#p2 = locscale_to_locspread(r2$par[1], r2$par[2], r2$par[3], α, β)
-#p2
-
-
 expected_twcrps_bgev_gev = function(μ, σ, ξ, p,
                                     μ_true = μ, σ_true = σ, ξ_true = ξ,
                                     p_a = .1, p_b = .2) {
@@ -151,15 +113,10 @@ saveRDS(
   stats,
   file.path(here::here(), "results", "simulation-study-univariate.rds"))
 
-stats %>%
-  do.call(rbind, .) %>%
-  dplyr::filter(n == tail(n_vec, 1), par %in% c("s", "ξ"), !is_inside) %>%
-  dplyr::mutate(below = case_when(val < lower ~ TRUE, val > upper ~ FALSE, TRUE ~ NA)) %>%
-  ggplot() +
-  geom_point(aes(x = i, y = val, col = below)) +
-  geom_errorbar(aes(x = i, ymin = lower, ymax = upper, col = below)) +
-  facet_wrap(~par, scales = "free_y")
-
+# This shows the inclusion stats for different parameter/return levels
+# Since we overestimate ξ and underestimate σ, that means that we overestimate the large
+# return periods and underestimate the small periods. It also means that we do quite well
+# on the in-between size return periods, like 10-50 years.
 stats %>%
   do.call(rbind, .) %>%
   dplyr::group_by(par, n) %>%
@@ -169,9 +126,20 @@ stats %>%
   facet_wrap(~par) +
   geom_hline(yintercept = .95) +
   labs(fill = "n") +
-  coord_cartesian(y = c(.5, 1))
-# We care about the return periods, and we see that they get better and better!
-# We don't really care about the parameters!
+  coord_cartesian(y = c(.4, 1))
+
+# Create a table of inclusion percentages
+table = stats %>%
+  do.call(rbind, .) %>%
+  dplyr::group_by(n, par) %>%
+  dplyr::summarise(inclusion_percentage = base::mean(is_inside)) %>%
+  tidyr::pivot_wider(names_from = par, values_from = inclusion_percentage) %>%
+  .[, c(1, 11, 13, 12, 2, 7, 4, 8)] %>%
+  as.matrix()
+table[, -1] = paste0("\\(", format(table[, -1] * 100, digits = 3), "\\%\\)")
+table = sapply(seq_len(nrow(table)), function(i) c(paste(table[i, ], collapse = " & "), "\\\\\n"))
+cat(table)
+
 
 stats %>%
   do.call(rbind, .) %>%
@@ -186,10 +154,99 @@ stats %>%
   do.call(rbind, .) %>%
   dplyr::group_by(n) %>%
   dplyr::summarise(
-    loglik = mean(loglik),
-    true_loglik = mean(true_loglik),
-    gev_loglik = mean(gev_loglik),
-    gev_true_loglik = mean(gev_true_loglik))
+    twcrps = base::mean(twcrps),
+    stwcrps = base::mean(stwcrps),
+    estwcrps = base::mean(estwcrps),
+    etwcrps = base::mean(etwcrps))
+# Everything goes down, except the (s)twcrps. This kind of makes sense, I think.
+# The reason is that we are "overfitting" to the available data or something like that...
+
+
+# Plot MSE for all parameters/return levels
+stats %>%
+  do.call(rbind, .) %>%
+  dplyr::group_by(n, par) %>%
+  dplyr::summarise(mse = base::mean(mse)) %>%
+  ggplot() +
+  geom_point(aes(x = log(n), y = log(mse))) +
+  facet_wrap(~par, scales = "free_y")
+
+# Create a table of MSE values
+table = stats %>%
+  do.call(rbind, .) %>%
+  dplyr::group_by(n, par) %>%
+  dplyr::summarise(mse = base::mean(mse)) %>%
+  tidyr::pivot_wider(names_from = par, values_from = mse) %>%
+  .[, c(1, 11, 13, 12, 2, 7, 4, 8)] %>%
+  as.matrix()
+table[, -1] = paste0("\\(", format(log(table[, -1]), digits = 2, scientific = FALSE), "\\)")
+table = sapply(seq_len(nrow(table)), function(i) c(paste(table[i, ], collapse = " & "), "\\\\\n"))
+cat(table)
+
+
+
+
+# Look at the likelihood surface for the GEV distribution and the bGEV distribution.
+# We see that there is a difference between the MLE of the two distributions
+μ = 0
+σ = 3
+ξ = .25
+n = 500000
+set.seed(1)
+y = rgev(n, μ, σ, ξ)
+ll_bgev = function(μ, σ, ξ) {
+  res = pbapply::pbsapply(
+    X = seq_along(μ),
+    cl = 7,
+    FUN = function(i) {
+      sum(dbgev(y, μ[i], σ[i], ξ[i], log = TRUE))
+    }
+  )
+  res
+}
+ll_gev = function(μ, σ, ξ) {
+  res = pbapply::pbsapply(
+    X = seq_along(μ),
+    cl = 7,
+    FUN = function(i) {
+      sum(dgev(y, μ[i], σ[i], ξ[i], log = TRUE))
+    }
+  )
+  res
+}
+df = expand.grid(μ = 0,
+                 σ = seq(2.5, 3.5, length = 50),
+                 ξ = seq(.2, .35, length = 50))
+
+df$ll_bgev = ll_bgev(df$μ, df$σ, df$ξ)
+df$ll_gev = ll_gev(df$μ, df$σ, df$ξ)
+
+gg1 = ggplot(df) +
+  geom_contour(aes(x = σ, y = ξ, z = log(log(-ll_bgev))), bins = 500) +
+  #geom_raster(aes(x = σ, y = ξ, fill = log(log(-ll_bgev))), alpha = .5) +
+  geom_point(data = data.frame(x = σ, y = ξ), aes(x = x, y = y), col = "red") +
+  scale_fill_viridis_c() +
+  labs(title = "Log-likelihood for the bGEV distribution")
+gg2 = ggplot(df) +
+  geom_contour(aes(x = σ, y = ξ, z = log(log(-ll_gev))), bins = 500) +
+  #geom_raster(aes(x = σ, y = ξ, fill = log(log(-ll_gev))), alpha = .5) +
+  geom_point(data = data.frame(x = σ, y = ξ), aes(x = x, y = y), col = "red") +
+  scale_fill_viridis_c() +
+  labs(title = "Log-likelihood for the GEV distribution")
+patchwork::wrap_plots(gg1, gg2)
+
+
+# This shows that we have a tendency to overestimate ξ and underestimate σ, but
+# that is something we already know by now...
+stats %>%
+  do.call(rbind, .) %>%
+  dplyr::filter(n == tail(n_vec, 1), par %in% c("σ", "ξ"), !is_inside) %>%
+  dplyr::mutate(below = case_when(val < lower ~ TRUE, val > upper ~ FALSE, TRUE ~ NA)) %>%
+  ggplot() +
+  geom_point(aes(x = i, y = val, col = below)) +
+  geom_errorbar(aes(x = i, ymin = lower, ymax = upper, col = below)) +
+  facet_wrap(~par, scales = "free_y")
+
 
 stats %>%
   do.call(rbind, .) %>%
@@ -198,15 +255,7 @@ stats %>%
   dplyr::mutate(n = factor(n), par = factor(par)) %>%
   ggplot() +
   geom_col(aes(x = n, y = larger, fill = n)) +
-  facet_wrap(~par)
+  facet_wrap(~par) +
+  geom_hline(yintercept = .5)
 
 stats %>%
-  do.call(rbind, .) %>%
-  dplyr::group_by(n) %>%
-  dplyr::summarise(
-    twcrps = base::mean(twcrps),
-    stwcrps = base::mean(stwcrps),
-    estwcrps = base::mean(estwcrps),
-    etwcrps = base::mean(etwcrps))
-# Everything goes down, except the (s)twcrps. This kind of makes sense, I think.
-# The reason is that we are "overfitting" to the available data or something like that...
