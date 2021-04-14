@@ -88,14 +88,19 @@ for (i in seq_along(hour_vec)) {
     mesh = mesh,
     family = "bgev",
     n_batches = 20,
-    fun = function(pars) {
-      locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
-      return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
-    })
+    fun = list(
+      return_level = function(pars) {
+        locscale_pars = locspread_to_locscale(pars$q, pars$s, pars$ξ, α, β)
+        return_level_gev(return_level_period, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ)
+      },
+      relative_matern_size = function(pars) {
+        abs(pars$matern) / abs(pars$q)
+      }))
 
   ρ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[3])))
   stats[[i]]$ρ = data_stats(ρ_samples)
-  stats[[i]]$sd_ρ = sd_res$summary.hyperpar[2, ]
+  stats[[i]]$sd_fixed = sd_res$summary.fixed
+  stats[[i]]$sd_hyper = sd_res$summary.hyperpar
 
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
@@ -260,10 +265,27 @@ cat(unlist(table))
 table = NULL
 for (i in seq_along(hour_vec)) {
   message(paste(hour_vec[i], "hour sd_ρ:"))
-  print(stats[[i]]$sd_ρ)
+  print(stats[[i]]$sd_hyper[2, ])
   table[i] = stats[[i]]$sd_ρ[c(1, 3, 4, 5)] %>%
     format(digits = 2) %>%
     paste0("\\(", ., "\\)", collapse = " & ")
   table[i] = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"), "&", table[i], "\\\\\n")
 }
 cat(unlist(table))
+
+
+# Size of the matern fields ======================
+
+# u_s
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour sd_σ"))
+  print(stats[[i]]$sd_hyper[3, ])
+  message(paste(hour_vec[i], "hour sd_fixed"))
+  print(stats[[i]]$sd_fixed)
+}
+
+# u_q
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour |u_q| / |q|"))
+  print(mean(stats[[i]]$relative_matern_size$mean))
+}

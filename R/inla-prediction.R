@@ -166,17 +166,20 @@ inla_bgev_pars = function(samples,
   # If there is a spatial Gaussian field in the model, sample from it
   # and add it to the location parameter
   is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
-  if (is_matern_field) q = q + inla_sample_matern_field(samples, mesh, coords)
-  #if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
+  #if (is_matern_field) q = q + inla_sample_matern_field(samples, mesh, coords)
+  if (is_matern_field) {
+    matern = inla_sample_matern_field(samples, mesh, coords)
+    q = q + matern
+  }
 
   # If the response had been standardised, compute un-standardised parameters
   if (!is.null(s_est)) {
     s = s * matrix(rep(s_est, length(samples)), ncol = length(samples))
     q = q * matrix(rep(s_est, length(samples)), ncol = length(samples))
-    #matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
   }
 
-  pars = list(q = q, s = s, ξ = ξ)
+  pars = list(q = q, s = s, ξ = ξ, matern = matern)
   # Compute some function of the sampled parameters, e.g. return level
   if (!is.null(fun)) {
     if (is.function(fun)) {
