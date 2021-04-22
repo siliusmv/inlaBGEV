@@ -6,8 +6,9 @@ library(inlaBGEV)
 library(ggplot2)
 library(patchwork)
 
-# In this script we estimate return level maps for 1, 3, and 6 hour precipitation,
+# In this script we estimate return level maps for short-term precipitation,
 # using the two-step model
+# Parameters are also estimated
 
 hour_vec = c(1, 3, 6, 12, 24) # Which aggregation lengths are we examining?
 α = .5; β = .8 # Probabilities used in the location and spread parameters

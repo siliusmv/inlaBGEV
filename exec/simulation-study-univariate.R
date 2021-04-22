@@ -5,6 +5,10 @@ library(inlaBGEV)
 library(parallel)
 
 
+# In this script we perform a univariate simulation study were we test
+# the performance of the bGEV distribution when data are drawn from a GEV distribution
+
+
 expected_twcrps_bgev_gev = function(μ, σ, ξ, p,
                                     μ_true = μ, σ_true = σ, ξ_true = ξ,
                                     p_a = .1, p_b = .2) {

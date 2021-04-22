@@ -1,4 +1,7 @@
 
+# This script contains a very large function used for applying the two-step model
+# for modelling with the bGEV distribution
+
 #' @export
 twostep_modelling = function(data,
                              sd_model,

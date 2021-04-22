@@ -4,7 +4,7 @@ library(inlaBGEV)
 library(INLA)
 
 # In this script we perform k-fold cross-validation on the joint model and on the
-# two-step model. The performance of the foreacsts are evaluated using stwCRPS, where
+# two-step model. The performance of the foreacsts are evaluated using StwCRPS, where
 # the weight function is an indicator function that is one for larger quantiles than
 # the p_0 quantile
 

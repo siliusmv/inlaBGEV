@@ -1,4 +1,7 @@
 
+# This script provides the necessary functions for working with the bGEV distribution
+
+
 #' @export
 pbgev = function(x, μ, σ, ξ, p_a = .1, p_b = .2, s = 5) {
   fix_lengths(x, μ, σ, ξ, p_a, p_b, s)

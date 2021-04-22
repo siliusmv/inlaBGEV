@@ -6,6 +6,12 @@ library(parallel)
 library(sf)
 library(mvtnorm)
 
+
+# In this script we perform a simulation study were we test
+# the performance of the two-step model versus the joint model in a setting with covariates
+# Performance is evaluated in-sample
+
+
 # Function for computing the expected twCRPS of a forecast when
 # the forecast is a mixture of bGEV distributions with parameters (μ, σ, ξ)
 # and the true distribution is a GEV distribution with parameters (μ_true, σ_true, ξ_true)

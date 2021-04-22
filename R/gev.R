@@ -1,4 +1,7 @@
 
+# This script provides the necessary functions for working with the GEV distribution
+
+
 #' @export
 pgev = function(x, μ, σ, ξ) {
   fix_lengths(x, μ, σ, ξ)

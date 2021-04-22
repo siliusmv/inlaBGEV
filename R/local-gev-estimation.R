@@ -1,4 +1,8 @@
 
+# This script contains functions for performing univariate parameter estimation with the GEV
+# and bGEV distributions
+
+
 #' @export
 gev_fit = function(x, method = c("pwm", "inla_bgev", "inla_gev"), ...) {
   fit = switch(method[1],

@@ -1,3 +1,6 @@
+
+# This script contains functions for plotting the results from R-INLA
+
 #' @export
 plot_stats = function(x, grid = TRUE,
                       upper = .975, lower = .025,

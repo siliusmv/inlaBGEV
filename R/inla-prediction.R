@@ -1,3 +1,7 @@
+
+# This script contains functions for estimating parameters at various locations
+# using output from the R-INLA package
+
 #' @export
 inla_stats = function(sample_list,
                       data,

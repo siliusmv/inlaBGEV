@@ -1,3 +1,8 @@
+
+# This script contains functions for computing summary statistics on large data-sets that are
+# outputs from the functions in `inla-prediction.R`
+
+
 #' @export
 compute_data_stats = function(pars, q = c(.025, .25, .5, .75, .975)) {
   varname = as.character(substitute(pars))

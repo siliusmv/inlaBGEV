@@ -1,4 +1,7 @@
 
+# This script contains functions for computing the PC prior of ξ in the
+# GP, GEV and bGEV distributions
+
 #' @export
 pc_gp = function(ξ, λ = 7) {
   sqrt(2) * λ * exp(-sqrt(2) * λ * ξ / sqrt(1 - ξ)) * (1 - ξ / 2) / (1 - ξ)^1.5

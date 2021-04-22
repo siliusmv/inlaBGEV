@@ -1,4 +1,6 @@
 
+# This script contains functions used for running R-INLA with precipitation data in Norway
+
 #' @export
 inla_default_args = function(family = "bgev", α = .5, β = .8) {
   res = list(

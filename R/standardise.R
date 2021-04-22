@@ -1,4 +1,7 @@
 
+# This script contains functions for standardising covariates so they hace a mean of 0
+# and a standard deviation of 1
+
 #' @export
 standardise = function(x, stats = NULL, names = NULL) {
   if (is.null(dim(x))) {

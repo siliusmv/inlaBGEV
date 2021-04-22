@@ -1,3 +1,6 @@
+
+# This script contains various utility functions
+
 fix_lengths = function(...) {
   call = match.call()
   varnames = sapply(call[-1], as.character)
