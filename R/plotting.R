@@ -4,13 +4,19 @@ plot_stats = function(x, grid = TRUE,
                       breaks = NULL, CI_breaks = NULL,
                       use_tex = FALSE, axis_text = TRUE,
                       add_stations = FALSE,
+                      plot_median = FALSE,
                       ...) {
   x$CI = x[[paste0(as.character(upper * 100), "%")]] - x[[paste0(as.character(lower * 100), "%")]]
+  if (plot_median) {
+    x$value = x$`50%`
+  } else {
+    x$value = x$mean
+  }
   if (grid) {
-    gg1 = plot_grid(x, "mean", breaks, use_tex = use_tex)
+    gg1 = plot_grid(x, "value", breaks, use_tex = use_tex)
     gg2 = plot_grid(x, "CI", CI_breaks, use_tex = use_tex)
   } else {
-    gg1 = plot_on_map(x, "mean", breaks, use_tex = use_tex)
+    gg1 = plot_on_map(x, "value", breaks, use_tex = use_tex)
     gg2 = plot_on_map(x, "CI", CI_breaks, use_tex = use_tex)
   }
   if (add_stations) {
@@ -19,15 +25,7 @@ plot_stats = function(x, grid = TRUE,
   }
   gg1 = style_map_plot(gg1, x, use_tex, ...)
   gg2 = style_map_plot(gg2, x, use_tex, ...)
-  #gg1 = gg1 + labs(fill = "Posterior mean")
   gg1 = gg1 + labs(fill = "PM")
-  #if (use_tex) {
-  #  gg2 = gg2 +
-  #    labs(fill = paste0("Posterior $", as.character((upper - lower) * 100), "\\%$\nCI width"))
-  #} else {
-  #  gg2 = gg2 +
-  #    labs(fill = paste0("Posterior ", as.character((upper - lower) * 100), "%\nCI width"))
-  #}
   gg2 = gg2 + labs(fill = "WCI")
   if (!axis_text) {
     gg1 = gg1 + theme(axis.text = element_blank(), axis.ticks = element_blank())
@@ -36,7 +34,7 @@ plot_stats = function(x, grid = TRUE,
   gg1 + gg2
 }
 
-style_map_plot = function(plot, data, use_tex, ...) {
+style_map_plot = function(plot, data, use_tex = FALSE, ...) {
    plot = plot +
     add_norway_map(sf::st_crs(data), sf::st_bbox(data), ...) +
     theme_light() +
@@ -61,9 +59,6 @@ plot_grid = function(data, response_name, breaks = NULL, use_tex = FALSE) {
 
 #' @export
 plot_on_map = function(data, response_name = NULL, breaks = NULL, use_tex = FALSE) {
-  #coords = as.data.frame(sf::st_coordinates(data))
-  #data$x = coords$X
-  #data$y = coords$Y
   if (!is.null(breaks)) {
     data[[response_name]] = get_binned_data(data[[response_name]], breaks, use_tex = use_tex)
   }
