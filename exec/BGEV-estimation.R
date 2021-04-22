@@ -110,11 +110,20 @@ saveRDS(stats, file.path(here::here(), "results", "return-level-stats.rds"))
 
 # Plot the results ===================================================
 
+# Filter out the data of interest and standardise the covariates in the observations data
+# and in the prediction data
+data = dplyr::left_join(observations, estimated_sd, by = c("id", "n_hours", "n_years")) %>%
+  dplyr::filter(n_hours == 1)
+standardisation_stats = get_mean_and_sd_stats(data, unique(unlist(covariate_names)))
+data = standardise(data, standardisation_stats)
+prediction_data = standardise(prediction_grid, standardisation_stats)
+
+
 # Return levels =======================
 my_breaks = c(16, 18, 20, 22, 24, 26)
 #CI_breaks = c(2, 2.5, 3, 3.5, 4)
 CI_breaks = c(6, 8, 10, 12, 14, 16)
-p1 = stats[[1]]$fun %>%
+p1 = stats[[1]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
@@ -123,18 +132,18 @@ p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation")
 
 my_breaks = seq(25, by = 5, length = 6)
 #CI_breaks = c(2, 3, 4, 5, 6)
-CI_breaks = c(5, 10, 15, 20, 25, 30)
-p2 = stats[[2]]$f %>%
+CI_breaks = c(8, 12, 16, 20, 24, 28)
+p2 = stats[[2]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation")
 
-my_breaks = seq(30, by = 10, length = 6)
+my_breaks = seq(34, by = 8, length = 6)
 #CI_breaks = c(4, 6, 8, 10, 12)
-CI_breaks = c(8, 16, 24, 32, 40, 48)
-p3 = stats[[3]]$f %>%
+CI_breaks = c(10, 16, 22, 28, 34, 40)
+p3 = stats[[3]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
@@ -142,7 +151,7 @@ p3 = stats[[3]]$f %>%
 p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation")
 
 my_breaks = seq(20, by = 15, length = 6)
-p4 = stats[[4]]$f %>%
+p4 = stats[[4]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
@@ -150,13 +159,12 @@ p4 = stats[[4]]$f %>%
 p4[[1]] = p4[[1]] + labs(title = "12 hour precipitatio")
 
 my_breaks = seq(30, by = 20, length = 6)
-p5 = stats[[5]]$f %>%
+p5 = stats[[5]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p5[[1]] = p5[[1]] + labs(title = "24 hour precipitatio")
-
 
 text_size = 12
 myplot = patchwork::wrap_plots(
@@ -164,7 +172,6 @@ myplot = patchwork::wrap_plots(
   p2 * theme(text = element_text(size = text_size)),
   p3 * theme(text = element_text(size = text_size)),
   nrow = 3)
-
 
 tikz_plot(file.path(here::here(), "results", "return-level-maps.pdf"),
           myplot, width = 6, height = 10, view = TRUE)
@@ -235,6 +242,43 @@ myplot = patchwork::wrap_plots(
 tikz_plot(file.path(here::here(), "results", "BGEV-parameter-maps.pdf"),
           myplot, width = 6, height = 10, view = TRUE)
 
+# Look at the matern =============================
+
+p1 = stats[[1]]$q %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats()
+p2 = stats[[1]]$matern %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats()
+p3 = stats[[1]]$relative_matern_size %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(plot_median = TRUE)
+
+patchwork::wrap_plots(p1, p2, p3, nrow = 3)
+
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour |u_q| / |q|:"))
+  message("Mean of mean: ", mean(stats[[i]]$relative_matern_size$mean))
+  message("Median of mean: ", median(stats[[i]]$relative_matern_size$mean))
+  message("Mean of median: ", mean(stats[[i]]$relative_matern_size$`50%`))
+  message("Median of median: ", median(stats[[i]]$relative_matern_size$`50%`), "\n")
+}
+
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour sd_stats:"))
+  print(stats[[i]]$sd_hyper[3, ])
+  print(stats[[i]]$sd_fixed)
+  message("Mean of σ divided by mean of intercept:")
+  print(stats[[i]]$sd_hyper[3, 1] / stats[[i]]$sd_fixed[1, 1])
+  message("\n\n")
+}
+
+# The absolute value of the matern field q is approx 10% of the absolute value of q
+# The matern field in s^* has a standard deviation equal to approx 10% of the remaining components in the linear predictor
+
 
 # Tail parameter summary =========================
 
@@ -266,26 +310,9 @@ table = NULL
 for (i in seq_along(hour_vec)) {
   message(paste(hour_vec[i], "hour sd_ρ:"))
   print(stats[[i]]$sd_hyper[2, ])
-  table[i] = stats[[i]]$sd_ρ[c(1, 3, 4, 5)] %>%
+  table[i] = stats[[i]]$sd_hyper[2, c(1, 3, 4, 5)] %>%
     format(digits = 2) %>%
     paste0("\\(", ., "\\)", collapse = " & ")
   table[i] = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"), "&", table[i], "\\\\\n")
 }
 cat(unlist(table))
-
-
-# Size of the matern fields ======================
-
-# u_s
-for (i in seq_along(hour_vec)) {
-  message(paste(hour_vec[i], "hour sd_σ"))
-  print(stats[[i]]$sd_hyper[3, ])
-  message(paste(hour_vec[i], "hour sd_fixed"))
-  print(stats[[i]]$sd_fixed)
-}
-
-# u_q
-for (i in seq_along(hour_vec)) {
-  message(paste(hour_vec[i], "hour |u_q| / |q|"))
-  print(mean(stats[[i]]$relative_matern_size$mean))
-}
