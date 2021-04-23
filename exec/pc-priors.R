@@ -36,23 +36,8 @@ if (interactive()) print(plot)
 # some considerable differences between the PC prior and its approximation
 # for the GEV distribution
 
-# Create a plot for the article
-plot = df2 %>%
-  pivot_longer(starts_with(c("g", "b"))) %>%
-  dplyr::mutate(name = factor(name, levels = c("gev", "bgev", "gp"),
-                              labels = c("GEV", "BGEV", "GP"))) %>%
-  ggplot() +
-  geom_line(aes(x = ξ, y = value, linetype = name, group = name)) +
-  scale_linetype_manual(values = c("solid", "dashed", "dotted")) +
-  theme_bw() +
-  labs(x = "$\\xi$", y = "Density", linetype = "Distribution")
-
-tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
-          plot, width = 10, height = 7, view = TRUE)
-
-
 df3 = list()
-λ_vec = c(.1, .5, 1, 2.5, 5, 10)
+λ_vec = c(.5, 1, 2.5, 5, 7, 10)
 for (i in seq_along(λ_vec)) {
   df3[[i]] = data.frame(ξ = seq(.005, .999, by = .001))
   df3[[i]]$gev = pc_gev(df3[[i]]$ξ, λ = λ_vec[i])
@@ -74,8 +59,12 @@ plot = df3 %>%
   scale_linetype_manual(values = c("solid", "dashed", "dotted")) +
   theme_bw() +
   labs(x = "$\\xi$", y = "Density", linetype = "Distribution") +
-  facet_wrap(~λ, scales = "free_y") +
-  theme(text = element_text(size = 14))
+  facet_wrap(~λ, scales = "free_y", nrow = 3) +
+  theme(text = element_text(size = 16),
+        legend.position = "top")
+
+#tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
+#          plot, width = 10, height = 7, view = TRUE)
 
 tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
-          plot, width = 10, height = 7, view = TRUE)
+          plot, height = 10, width = 7, view = TRUE)
