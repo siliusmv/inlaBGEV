@@ -65,7 +65,6 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$data$sd_spde = sd_spde
   sd_res = do.call(inla, sd_inla_args)
 
-
   # Run the two-step model
   samples = twostep_modelling(
     data = data,
@@ -102,6 +101,22 @@ for (i in seq_along(hour_vec)) {
   stats[[i]]$ρ = data_stats(ρ_samples)
   stats[[i]]$sd_fixed = sd_res$summary.fixed
   stats[[i]]$sd_hyper = sd_res$summary.hyperpar
+
+  beta_vals = lapply(
+    seq_along(samples),
+    function(j) {
+      contents = attr(samples[[j]]$samples, ".contents")
+      indices = which(contents$tag %in% c("intercept", covariate_names[[1]]))
+      res = vapply(
+        samples[[j]]$samples,
+        function(z) z$latent[contents$start[indices], ],
+        numeric(length(indices)))
+      rownames(res) = vapply(rownames(res), function(n) strsplit(n, ":")[[1]][1], character(1))
+      res
+    }) %>%
+    do.call(cbind, .)
+
+  stats[[i]]$beta_q = data_stats(beta_vals)
 
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
