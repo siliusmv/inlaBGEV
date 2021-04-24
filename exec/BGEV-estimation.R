@@ -116,7 +116,9 @@ for (i in seq_along(hour_vec)) {
     }) %>%
     do.call(cbind, .)
 
+  percentage_positive = apply(beta_vals, 1, function(x) mean(x > 0))
   stats[[i]]$beta_q = data_stats(beta_vals)
+  stats[[i]]$beta_q$percentage_positive = percentage_positive
 
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
