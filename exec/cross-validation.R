@@ -144,12 +144,12 @@ for (i in seq_along(hour_vec)) {
 
   # Estimate parameters at all locations
   params = list()
-  for (k in seq_along(twostep)) {
+  for (k in seq_along(twostep_nogaussian)) {
     params[[k]] = inla_bgev_pars(
-      samples = twostep[[k]]$samples,
+      samples = twostep_nogaussian[[k]]$samples,
       data = data,
       covariate_names = list(covariate_names[[1]], NULL, NULL),
-      s_est = twostep[[k]]$s_est,
+      s_est = twostep_nogaussian[[k]]$s_est,
       mesh = mesh,
       coords = st_geometry(dplyr::distinct(data, id)))
   }
@@ -327,12 +327,12 @@ for (i in seq_along(hour_vec)) {
 
     # Estimate parameters at all out-of-fold locations
     params = list()
-    for (k in seq_along(twostep)) {
+    for (k in seq_along(twostep_nogaussian)) {
       params[[k]] = inla_bgev_pars(
-        samples = twostep[[k]]$samples,
+        samples = twostep_nogaussian[[k]]$samples,
         data = dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE),
         covariate_names = list(covariate_names[[1]], NULL, NULL),
-        s_est = twostep[[k]]$s_est,
+        s_est = twostep_nogaussian[[k]]$s_est,
         mesh = mesh,
         coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
     }
