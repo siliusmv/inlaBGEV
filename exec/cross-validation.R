@@ -28,7 +28,9 @@ for (i in seq_along(hour_vec)) {
     in_sample_twostep = list(),
     out_of_sample_twostep = list(),
     in_sample_twostep_one = list(),
+    in_sample_twostep_nogaussian = list(),
     out_of_sample_twostep_one = list(),
+    out_of_sample_twostep_nogaussian = list(),
     in_sample_joint = list(),
     out_of_sample_joint = list())
   n_hours = hour_vec[i]
@@ -80,7 +82,14 @@ for (i in seq_along(hour_vec)) {
   sd_inla_args$data$sd_spde = sd_spde
   sd_res = do.call(inla, sd_inla_args)
 
-  # Perform in-sample estimation using all the data
+  sd_inla_args2 = inla_default_args("gaussian")
+  sd_inla_args2$data = sd_df
+  sd_inla_args2$data$intercept = 1
+  sd_inla_args2$formula = as.formula(paste("log_sd ~ -1 + intercept +",
+                                           paste(covariate_names[[2]], collapse = " + ")))
+  sd_res2 = do.call(inla, sd_inla_args2)
+
+  # Perform in-sample estimation using all the data, twostep model
   set.seed(1)
   twostep = twostep_modelling(
     data = data,
@@ -118,7 +127,45 @@ for (i in seq_along(hour_vec)) {
       obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
 
-  # Perform in-sample estimation using all the data
+  # Perform in-sample estimation using all the data, twostep no gaussian
+  set.seed(1)
+  twostep_nogaussian = twostep_modelling(
+    data = data,
+    sd_model = sd_res2,
+    covariate_names = covariate_names,
+    response_name = "value",
+    diagonal = .05,
+    n_sd_samples = n_sd_samples,
+    spde = spde,
+    num_cores = num_cores,
+    α = α,
+    β = β)
+  message("Done with in-sample two-step model")
+
+  # Estimate parameters at all locations
+  params = list()
+  for (k in seq_along(twostep)) {
+    params[[k]] = inla_bgev_pars(
+      samples = twostep[[k]]$samples,
+      data = data,
+      covariate_names = list(covariate_names[[1]], NULL, NULL),
+      s_est = twostep[[k]]$s_est,
+      mesh = mesh,
+      coords = st_geometry(dplyr::distinct(data, id)))
+  }
+  params = purrr::transpose(params)
+  for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
+
+  # Compute stwCRPS
+  for (k in seq_along(unique(data$id))) {
+    id = unique(data$id)[k]
+    obs = dplyr::filter(data, id == !!id)$value
+    locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
+    stats[[i]]$in_sample_twostep_nogaussian[[k]] = stwcrps_bgev(
+      obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
+  }
+
+  # Perform in-sample estimation using all the data, twostep no bootstrap
   set.seed(1)
   twostep_one = twostep_modelling(
     data = data,
@@ -213,7 +260,14 @@ for (i in seq_along(hour_vec)) {
     sd_inla_args$data$sd_spde = sd_spde
     sd_res = do.call(inla, sd_inla_args)
 
-    # Perform out-of-sample estimation with the two-step model, with bootsrtapping
+    sd_inla_args2 = inla_default_args("gaussian")
+    sd_inla_args2$data = in_fold_sd_df
+    sd_inla_args2$data$intercept = 1
+    sd_inla_args2$formula = as.formula(paste("log_sd ~ -1 + intercept +",
+                                             paste(covariate_names[[2]], collapse = " + ")))
+    sd_res2 = do.call(inla, sd_inla_args2)
+
+    # Perform out-of-sample estimation with the two-step model, with bootstrapping
     set.seed(1)
     twostep = twostep_modelling(
       data = in_fold_data,
@@ -251,6 +305,47 @@ for (i in seq_along(hour_vec)) {
       obs = dplyr::filter(out_of_fold_data, id == !!id)$value
       locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
       stats[[i]]$out_of_sample_twostep[[j]][[k]] = stwcrps_bgev(
+        obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
+    }
+
+    # Perform out-of-sample estimation with the two-step model, with no gaussian
+    set.seed(1)
+    twostep_nogaussian = twostep_modelling(
+      data = in_fold_data,
+      prediction_data = dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE),
+      sd_model = sd_res2,
+      covariate_names = covariate_names,
+      response_name = "value",
+      diagonal = .05,
+      n_sd_samples = n_sd_samples,
+      verbose = FALSE,
+      spde = spde,
+      num_cores = num_cores,
+      α = α,
+      β = β)
+    message("Done with out-of-sample two-step model for fold ", j)
+
+    # Estimate parameters at all out-of-fold locations
+    params = list()
+    for (k in seq_along(twostep)) {
+      params[[k]] = inla_bgev_pars(
+        samples = twostep[[k]]$samples,
+        data = dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE),
+        covariate_names = list(covariate_names[[1]], NULL, NULL),
+        s_est = twostep[[k]]$s_est,
+        mesh = mesh,
+        coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
+    }
+    params = purrr::transpose(params)
+    for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
+
+    # Compute stwCRPS
+    stats[[i]]$out_of_sample_twostep_nogaussian[[j]] = list()
+    for (k in seq_along(unique(out_of_fold_data$id))) {
+      id = unique(out_of_fold_data$id)[k]
+      obs = dplyr::filter(out_of_fold_data, id == !!id)$value
+      locscale_pars = locspread_to_locscale(params$q[k, ], params$s[k, ], params$ξ[k, ], α, β)
+      stats[[i]]$out_of_sample_twostep_nogaussian[[j]][[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
 
@@ -340,12 +435,16 @@ for (i in seq_along(hour_vec)) {
           "=========================================")
   message("In sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$in_sample_twostep)))
+  message("In sample, twostep no gaussian:")
+  print(data_stats(unlist(stats[[i]]$in_sample_twostep_nogaussian)))
   message("In sample, twostep without bootstrapping:")
   print(data_stats(unlist(stats[[i]]$in_sample_twostep_one)))
   message("In sample, joint:")
   print(data_stats(unlist(stats[[i]]$in_sample_joint)))
   message("Out of sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_twostep)))
+  message("Out of sample, twostep no gaussian:")
+  print(data_stats(unlist(stats[[i]]$out_of_sample_twostep_nogaussian)))
   message("Out of sample, twostep without bootstrapping:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_twostep_one)))
   message("Out of sample, joint:")
@@ -362,12 +461,16 @@ for (i in seq_along(stats)) {
           "=========================================")
   message("In sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$in_sample_twostep), q))
+  message("In sample, twostep no gaussian:")
+  print(data_stats(unlist(stats[[i]]$in_sample_twostep_nogaussian), q))
   message("In sample, twostep without bootstrapping:")
   print(data_stats(unlist(stats[[i]]$in_sample_twostep_one), q))
   message("In sample, joint:")
   print(data_stats(unlist(stats[[i]]$in_sample_joint), q))
   message("Out of sample, twostep with bootstrapping:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_twostep), q))
+  message("Out of sample, twostep no gaussian:")
+  print(data_stats(unlist(stats[[i]]$out_of_sample_twostep_nogaussian), q))
   message("Out of sample, twostep without bootstrapping:")
   print(data_stats(unlist(stats[[i]]$out_of_sample_twostep_one), q))
   message("Out of sample, joint:")
@@ -382,10 +485,12 @@ df = lapply(
       base::mean(unlist(stats[[i]]$out_of_sample_joint)),
       base::mean(unlist(stats[[i]]$out_of_sample_twostep)),
       base::mean(unlist(stats[[i]]$out_of_sample_twostep_one)),
+      base::mean(unlist(stats[[i]]$out_of_sample_twostep_nogaussian)),
       base::mean(unlist(stats[[i]]$in_sample_joint)),
       base::mean(unlist(stats[[i]]$in_sample_twostep)),
-      base::mean(unlist(stats[[i]]$in_sample_twostep_one)))
-    best_indx = c(0, 3) + c(which.min(res[1:3]), which.min(res[4:6]))
+      base::mean(unlist(stats[[i]]$in_sample_twostep_one)),
+      base::mean(unlist(stats[[i]]$in_sample_twostep_nogaussian)))
+    best_indx = c(0, 4) + c(which.min(res[1:4]), which.min(res[5:8]))
     res = format(res, digits = 3)
     res[best_indx] = paste0("\\bm{", res[best_indx], "}")
     res = paste0("\\(", res, "\\)")
@@ -398,11 +503,12 @@ df = lapply(
 table = list(c("\n& & ", paste(names(df), collapse = " & "), "\\\\\n"))
 for (i in 1:nrow(df)) {
   table[[i + 1]] = c(case_when(i == 1 ~ "\\midrule\nOut-of-sample",
-                               i == 4 ~ "\\midrule\nIn-sample",
+                               i == 5 ~ "\\midrule\nIn-sample",
                                TRUE ~ ""), " &",
-                     case_when(i %in% c(1, 4) ~ "Joint",
-                               i %in% c(2, 5) ~ "Two-step with bootstrap",
-                               i %in% c(3, 6) ~ "Two-step"), " model &",
+                     case_when(i %in% c(1, 5) ~ "Joint",
+                               i %in% c(2, 6) ~ "Two-step with bootstrap",
+                               i %in% c(4, 8) ~ "Two-step no Gaussian",
+                               i %in% c(3, 7) ~ "Two-step"), " model &",
                      paste(df[i, ], collapse = " & "), "\\\\\n")
 }
 cat(unlist(table))
