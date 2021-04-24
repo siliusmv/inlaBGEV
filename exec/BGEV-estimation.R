@@ -16,6 +16,7 @@ min_sd_years = 4L # Minimum number of years before we use the computed SD values
 return_level_period = 20 # Period we are computing return levels for
 n_sd_samples = 100 # Number of samples drawn from the distribution of the SD
 num_cores = 25 # Number of cores used for parallel computations
+num_twostep_samples = 2000 # Number of samples used in the two-step model
 
 # A list containing covariate_names for location, spread and tail parameter
 covariate_names = list(c("precipitation", "height", "x", "y", "dist_sea"),
@@ -74,6 +75,7 @@ for (i in seq_along(hour_vec)) {
     n_sd_samples = n_sd_samples,
     prediction_data = prediction_data,
     verbose = FALSE,
+    num_samples = num_twostep_samples,
     spde = spde,
     num_cores = num_cores,
     α = α,
@@ -98,7 +100,9 @@ for (i in seq_along(hour_vec)) {
       }))
 
   ρ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[3])))
+  σ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[2])))
   stats[[i]]$ρ = data_stats(ρ_samples)
+  stats[[i]]$σ = data_stats(σ_samples)
   stats[[i]]$sd_fixed = sd_res$summary.fixed
   stats[[i]]$sd_hyper = sd_res$summary.hyperpar
 
@@ -115,10 +119,11 @@ for (i in seq_along(hour_vec)) {
       res
     }) %>%
     do.call(cbind, .)
-
   percentage_positive = apply(beta_vals, 1, function(x) mean(x > 0))
-  stats[[i]]$beta_q = data_stats(beta_vals)
+  stats[[i]]$beta_q = data_stats(beta_vals,
+                                 q = c(.001, .01, .05, .1, .25, .5, .75, .9, .95, .99, .999))
   stats[[i]]$beta_q$percentage_positive = percentage_positive
+
 
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
@@ -334,3 +339,57 @@ for (i in seq_along(hour_vec)) {
   table[i] = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"), "&", table[i], "\\\\\n")
 }
 cat(unlist(table))
+
+
+# Regression coefficient summary
+
+table = list()
+for (i in seq_along(hour_vec)) {
+  message(paste(hour_vec[i], "hour beta_q:"))
+  print(stats[[i]]$beta_q)
+  cat("\n")
+  message(paste(hour_vec[i], "hour beta_s:"))
+  print(stats[[i]]$sd_fixed)
+  cat("\n")
+  beta_q = stats[[i]]$beta_q[, c(1, 2, 3, 5, 7)] %>%
+    round(digits = 3) %>%
+    format()
+  beta_s = stats[[i]]$sd_fixed[, c(1, 2, 3, 4, 5)] %>%
+    round(digits = 3) %>%
+    format()
+  tmp_q = NULL
+  for (j in seq_len(nrow(beta_q))) {
+    tmp_q[j] = paste("&", rownames(beta_q)[j], "&",
+                   paste0("\\(", beta_q[j, ], "\\)", collapse = " & "), "\\\\\n")
+    if (j == 1) tmp_q[j] = paste("\\(\\bm{\\beta}_q\\)", tmp_q[j], collapse = "")
+  }
+  tmp_s = NULL
+  for (j in seq_len(nrow(beta_s))) {
+    tmp_s[j] = paste("&", rownames(beta_s)[j], "&",
+                   paste0("\\(", beta_s[j, ], "\\)", collapse = " & "), "\\\\\n")
+    if (j == 1) tmp_s[j] = paste("\\(\\bm{\\beta}_s\\)", tmp_s[j], collapse = "")
+  }
+  table[[i]] = c(tmp_q, "\\midrule\n", tmp_s)
+}
+
+final_table = list()
+for (i in seq_along(table)) {
+  final_table[[i]] = paste("&", table[[i]])
+  final_table[[i]] = gsub("& \\\\midrule", "\\\\midrule", final_table[[i]])
+  final_table[[i]][1] = paste(hour_vec[i],
+                              ifelse(hour_vec[i] == 1, "hour", "hours"),
+                              final_table[[i]][1])
+  final_table[[i]] = paste(final_table[[i]], collapse = "")
+}
+final_table = unlist(final_table)
+
+selected_tables = c(1, 2, 3)
+final_table = paste(final_table[selected_tables], collapse = "\\midrule\n")
+final_table = gsub("dist_sea", "Distance to the open sea", final_table)
+final_table = gsub("precipitation", "Precipitation climatology(ies?)", final_table)
+final_table = gsub("height", "Altitude", final_table)
+final_table = gsub("intercept", "Intercept", final_table)
+final_table = gsub("x", "Easting", final_table)
+final_table = gsub("y", "Northing", final_table)
+
+cat(final_table)

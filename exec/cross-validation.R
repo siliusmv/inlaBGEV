@@ -140,7 +140,7 @@ for (i in seq_along(hour_vec)) {
     num_cores = num_cores,
     α = α,
     β = β)
-  message("Done with in-sample two-step model")
+  message("Done with in-sample two-step model, no gaussian")
 
   # Estimate parameters at all locations
   params = list()
@@ -178,7 +178,7 @@ for (i in seq_along(hour_vec)) {
     num_cores = 1,
     α = α,
     β = β)
-  message("Done with in-sample two-step model")
+  message("Done with in-sample two-step model, no bootstrap")
 
   # Estimate parameters at all locations
   params = list()
@@ -323,7 +323,7 @@ for (i in seq_along(hour_vec)) {
       num_cores = num_cores,
       α = α,
       β = β)
-    message("Done with out-of-sample two-step model for fold ", j)
+    message("Done with out-of-sample two-step model no gaussian for fold ", j)
 
     # Estimate parameters at all out-of-fold locations
     params = list()
@@ -364,7 +364,7 @@ for (i in seq_along(hour_vec)) {
       num_cores = 1,
       α = α,
       β = β)
-    message("Done with out-of-sample two-step model for fold ", j)
+    message("Done with out-of-sample two-step model no bootstrap for fold ", j)
 
     # Estimate parameters at all out-of-fold locations
     params = list()
