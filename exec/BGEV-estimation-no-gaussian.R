@@ -49,22 +49,12 @@ for (i in seq_along(hour_vec)) {
     dplyr::filter(n_years >= min_sd_years) %>%
     dplyr::mutate(log_sd = log(sd))
 
-  # Create a prior for the spatial Gaussian field used for modelling the SD
-  sd_spde = inla.spde2.pcmatern(
-    mesh = mesh,
-    prior.sigma = c(.5, .05),
-    prior.range = c(75, .05))
-
   # Estimate s^*
-  sd_stack = inla_stack(sd_df, covariate_names[[2]], response_name = "log_sd", spde = sd_spde)
-  sd_inla_formula = as.formula(paste("log_sd ~ -1 + intercept +",
-                                     paste(covariate_names[[2]], collapse = " + "),
-                                     "+ f(matern_field, model = sd_spde)"))
   sd_inla_args = inla_default_args("gaussian")
-  sd_inla_args$formula = sd_inla_formula
-  sd_inla_args$control.predictor$A = INLA::inla.stack.A(sd_stack)
-  sd_inla_args$data = INLA::inla.stack.data(sd_stack)
-  sd_inla_args$data$sd_spde = sd_spde
+  sd_inla_args$data = sd_df
+  sd_inla_args$data$intercept = 1
+  sd_inla_args$formula = as.formula(paste("log_sd ~ -1 + intercept +",
+                                          paste(covariate_names[[2]], collapse = " + ")))
   sd_res = do.call(inla, sd_inla_args)
 
   # Run the two-step model
@@ -130,7 +120,7 @@ for (i in seq_along(hour_vec)) {
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
 
-saveRDS(stats, file.path(here::here(), "results", "return-level-stats.rds"))
+saveRDS(stats, file.path(here::here(), "results", "return-level-stats-no-gaussian.rds"))
 
 # Plot the results ===================================================
 

@@ -56,12 +56,6 @@ for (i in seq_along(hour_vec)) {
     dplyr::filter(n_years >= min_sd_years) %>%
     dplyr::mutate(log_sd = log(sd))
 
-  # Create a prior for the spatial Gaussian field used for modelling the SD
-  sd_spde = inla.spde2.pcmatern(
-    mesh = mesh,
-    prior.sigma = c(1, .05),
-    prior.range = c(75, .05))
-
   # Estimate s^*
   message("Start in-sample evaluation")
   sd_inla_args2 = inla_default_args("gaussian")
