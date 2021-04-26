@@ -111,8 +111,7 @@ for (i in seq_along(hour_vec)) {
     }) %>%
     do.call(cbind, .)
   percentage_positive = apply(beta_vals, 1, function(x) mean(x > 0))
-  stats[[i]]$beta_q = data_stats(beta_vals,
-                                 q = c(.001, .01, .05, .1, .25, .5, .75, .9, .95, .99, .999))
+  stats[[i]]$beta_q = data_stats(beta_vals)
   stats[[i]]$beta_q$percentage_positive = percentage_positive
 
 
@@ -134,9 +133,8 @@ prediction_data = standardise(prediction_grid, standardisation_stats)
 
 
 # Return levels =======================
-my_breaks = c(16, 18, 20, 22, 24, 26)
-#CI_breaks = c(2, 2.5, 3, 3.5, 4)
-CI_breaks = c(6, 8, 10, 12, 14, 16)
+my_breaks = seq(17, by = 2, length = 6)
+CI_breaks = seq(2, by = 1, length = 6)
 p1 = stats[[1]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
@@ -144,9 +142,8 @@ p1 = stats[[1]]$return_level %>%
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation")
 
-my_breaks = seq(25, by = 5, length = 6)
-#CI_breaks = c(2, 3, 4, 5, 6)
-CI_breaks = c(8, 12, 16, 20, 24, 28)
+my_breaks = seq(27, by = 4, length = 6)
+CI_breaks = seq(3.5, by = 1, length = 6)
 p2 = stats[[2]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
@@ -154,9 +151,8 @@ p2 = stats[[2]]$return_level %>%
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation")
 
-my_breaks = seq(34, by = 8, length = 6)
-#CI_breaks = c(4, 6, 8, 10, 12)
-CI_breaks = c(10, 16, 22, 28, 34, 40)
+my_breaks = seq(35, by = 6, length = 6)
+CI_breaks = seq(4, by = 1.5, length = 6)
 p3 = stats[[3]]$return_level %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
@@ -164,22 +160,6 @@ p3 = stats[[3]]$return_level %>%
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation")
 
-my_breaks = seq(20, by = 15, length = 6)
-p4 = stats[[4]]$return_level %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-p4[[1]] = p4[[1]] + labs(title = "12 hour precipitatio")
-
-my_breaks = seq(30, by = 20, length = 6)
-p5 = stats[[5]]$return_level %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-p5[[1]] = p5[[1]] + labs(title = "24 hour precipitatio")
-
 text_size = 12
 myplot = patchwork::wrap_plots(
   p1 * theme(text = element_text(size = text_size)),
@@ -187,111 +167,19 @@ myplot = patchwork::wrap_plots(
   p3 * theme(text = element_text(size = text_size)),
   nrow = 3)
 
-tikz_plot(file.path(here::here(), "results", "return-level-maps.pdf"),
+tikz_plot(file.path(here::here(), "results", "return-level-maps-nogaussian.pdf"),
           myplot, width = 6, height = 10, view = TRUE)
 
-# BGEV parameters ===========================
-my_breaks = c(8, 10, 12, 14, 16)
-pq = stats[[1]]$q %>%
+# Examine the matern field for 1 hour precipitation ================
+plot = stats[[1]]$matern %>%
   cbind(st_geometry(prediction_data)) %>%
   st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-pq[[1]] = pq[[1]] + labs(title = "1 hour precipitation", fill = "$q_\\alpha$")
+  plot_stats(axis_text = FALSE, use_tex = TRUE, size = .3)
+plot = plot[[1]] +
+  theme(text = element_text(size = 12))
 
-my_breaks = c(1.5, 1.8, 2.1, 2.4, 2.7)
-ps = stats[[1]]$s %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-ps[[1]] = ps[[1]] + labs(fill = "$s_\\beta$")
-#ps[[1]] = ps[[1]] + labs(title = "1 hour precipitation, $s_\\beta$")
-
-p1 = pq[[1]] + ps[[1]]
-
-my_breaks = c(15, 20, 25, 30, 35)
-pq = stats[[2]]$q %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-pq[[1]] = pq[[1]] + labs(title = "3 hour precipitation", fill = "$q_\\alpha$")
-
-my_breaks = c(2, 2.5, 3, 3.5, 4)
-ps = stats[[2]]$s %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-ps[[1]] = ps[[1]] + labs(fill = "$s_\\beta$")
-
-p2 = pq[[1]] + ps[[1]]
-
-my_breaks = c(20, 30, 40, 50, 60)
-pq = stats[[3]]$q %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-pq[[1]] = pq[[1]] + labs(title = "6 hour precipitation", fill = "$q_\\alpha$")
-
-my_breaks = c(3, 4, 5, 6, 7)
-ps = stats[[3]]$s %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(breaks = my_breaks, use_tex = TRUE,
-             size = .3, axis_text = FALSE, add_stations = FALSE)
-ps[[1]] = ps[[1]] + labs(fill = "$s_\\beta$")
-
-p3 = pq[[1]] + ps[[1]]
-
-text_size = 12
-myplot = patchwork::wrap_plots(
-  p1 * theme(text = element_text(size = text_size)),
-  p2 * theme(text = element_text(size = text_size)),
-  p3 * theme(text = element_text(size = text_size)),
-  nrow = 3)
-
-tikz_plot(file.path(here::here(), "results", "BGEV-parameter-maps.pdf"),
-          myplot, width = 6, height = 10, view = TRUE)
-
-# Look at the matern =============================
-
-p1 = stats[[1]]$q %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats()
-p2 = stats[[1]]$matern %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats()
-p3 = stats[[1]]$relative_matern_size %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(plot_median = TRUE)
-
-patchwork::wrap_plots(p1, p2, p3, nrow = 3)
-
-for (i in seq_along(hour_vec)) {
-  message(paste(hour_vec[i], "hour |u_q| / |q|:"))
-  message("Mean of mean: ", mean(stats[[i]]$relative_matern_size$mean))
-  message("Median of mean: ", median(stats[[i]]$relative_matern_size$mean))
-  message("Mean of median: ", mean(stats[[i]]$relative_matern_size$`50%`))
-  message("Median of median: ", median(stats[[i]]$relative_matern_size$`50%`), "\n")
-}
-
-for (i in seq_along(hour_vec)) {
-  message(paste(hour_vec[i], "hour sd_stats:"))
-  print(stats[[i]]$sd_hyper[3, ])
-  print(stats[[i]]$sd_fixed)
-  message("Mean of σ divided by mean of intercept:")
-  print(stats[[i]]$sd_hyper[3, 1] / stats[[i]]$sd_fixed[1, 1])
-  message("\n\n")
-}
-
-# The absolute value of the matern field q is approx 10% of the absolute value of q
-# The matern field in s^* has a standard deviation equal to approx 10% of the remaining components in the linear predictor
+tikz_plot(file.path(here::here(), "results", "nogaussian-matern-plot.pdf"),
+          plot, width = 7, height = 10, view = TRUE)
 
 
 # Tail parameter summary =========================
@@ -320,18 +208,6 @@ for (i in seq_along(hour_vec)) {
 }
 cat(unlist(table))
 
-table = NULL
-for (i in seq_along(hour_vec)) {
-  message(paste(hour_vec[i], "hour sd_ρ:"))
-  print(stats[[i]]$sd_hyper[2, ])
-  table[i] = stats[[i]]$sd_hyper[2, c(1, 3, 4, 5)] %>%
-    format(digits = 2) %>%
-    paste0("\\(", ., "\\)", collapse = " & ")
-  table[i] = paste(hour_vec[i], ifelse(hour_vec[i] == 1, "hour", "hours"), "&", table[i], "\\\\\n")
-}
-cat(unlist(table))
-
-
 # Regression coefficient summary
 
 table = list()
@@ -343,18 +219,23 @@ for (i in seq_along(hour_vec)) {
   print(stats[[i]]$sd_fixed)
   cat("\n")
   beta_q = stats[[i]]$beta_q[, c(1, 2, 3, 5, 7)] %>%
+    cbind(significant = sign(stats[[i]]$beta_q[, 3]) == sign(stats[[i]]$beta_q[, 7])) %>%
+    as.matrix() %>%
     round(digits = 3) %>%
     format()
   beta_s = stats[[i]]$sd_fixed[, c(1, 2, 3, 4, 5)] %>%
+    cbind(significant = sign(stats[[i]]$sd_fixed[, 3]) == sign(stats[[i]]$sd_fixed[, 5])) %>%
+    as.matrix() %>%
     round(digits = 3) %>%
     format()
-  sigmas = matrix(nrow = 2, ncol = 5)
+  sigmas = matrix(nrow = 1, ncol = 5)
   sigmas[1, ] = as.numeric(stats[[i]]$σ[, c(1, 2, 3, 5, 7)])
-  sigmas[2, ] = as.numeric(stats[[i]]$sd_hyper[3, c(1, 2, 3, 4, 5)])
   sigmas = sigmas %>%
+    cbind(significant = 1) %>%
+    as.matrix() %>%
     round(digits = 3) %>%
     format()
-  rownames(sigmas) = c("sigma_q", "sigma_s")
+  rownames(sigmas) = c("sigma_q")
   tmp_q = NULL
   for (j in seq_len(nrow(beta_q))) {
     tmp_q[j] = paste("&", rownames(beta_q)[j], "&",
@@ -372,9 +253,8 @@ for (i in seq_along(hour_vec)) {
     tmp_σ[j] = paste(rownames(sigmas)[j], "& &",
                    paste0("\\(", sigmas[j, ], "\\)", collapse = " & "), "\\\\\n")
   }
-  table[[i]] = c(tmp_q, "\\midrule\n", tmp_σ[1], "\\midrule\n", tmp_s, "\\midrule\n", tmp_σ[2])
+  table[[i]] = c(tmp_q, tmp_σ[1], tmp_s)
 }
-
 final_table = list()
 for (i in seq_along(table)) {
   final_table[[i]] = paste("&", table[[i]])
@@ -385,7 +265,6 @@ for (i in seq_along(table)) {
   final_table[[i]] = paste(final_table[[i]], collapse = "")
 }
 final_table = unlist(final_table)
-
 selected_tables = c(1, 2, 3)
 final_table = paste(final_table[selected_tables], collapse = "\\midrule\n")
 final_table = gsub("dist_sea", "Distance to the open sea", final_table)
@@ -393,9 +272,10 @@ final_table = gsub("height", "Altitude", final_table)
 final_table = gsub("intercept", "Intercept", final_table)
 final_table = gsub("x", "Easting", final_table)
 final_table = gsub("y", "Northing", final_table)
-final_table = gsub("precipitation", "Precipitation climatology", final_table)
+final_table = gsub("precipitation", "Mean annual precipitation", final_table)
 final_table = gsub("sigma_q", "\\\\(\\\\sigma_q\\\\)", final_table)
-final_table = gsub("sigma_s", "\\\\(\\\\sigma_s\\\\)", final_table)
-
+final_table = gsub("\\( 1.000\\)", "\\checkmark", final_table, fixed = TRUE)
+final_table = gsub("\\(1.000\\)", "\\checkmark", final_table, fixed = TRUE)
+final_table = gsub("\\( 0.000\\)", "", final_table, fixed = TRUE)
 
 cat(final_table)
