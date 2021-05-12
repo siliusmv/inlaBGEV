@@ -80,7 +80,7 @@ tikz_plot = function(file, plot = NULL, expression = NULL, view = FALSE, ...) {
 
   # Compile to pdf
   #system2("pdflatex", tmp)
-  system2("lualatex", tmp)
+  system2("lualatex", shQuote(tmp))
 
   # Copy pdf file to final destination
   file.copy(paste0(tmp, ".pdf"), file, overwrite = TRUE)
@@ -93,7 +93,7 @@ tikz_plot = function(file, plot = NULL, expression = NULL, view = FALSE, ...) {
   # Open the pdf with the final output
   if (view) {
     if (operating_system == "Darwin") {
-      system2("open", file)
+      system2("open", shQuote(file))
     } else {
       message("I don't know the command to open a pdf for your operating system")
     }

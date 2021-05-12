@@ -28,7 +28,8 @@ Imports:
     quantreg,
     purrr,
     patchwork,
-    scico
+    scico,
+    magrittr
 Depends: 
     R (>= 2.10)
 Suggests: 

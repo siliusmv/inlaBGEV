@@ -37,6 +37,7 @@ plot_stats = function(x, grid = TRUE,
   gg1 + gg2
 }
 
+#' @export
 style_map_plot = function(plot, data, use_tex = FALSE, ...) {
    plot = plot +
     add_norway_map(sf::st_crs(data), sf::st_bbox(data), ...) +

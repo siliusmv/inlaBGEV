@@ -56,6 +56,9 @@ from all available weather stations. The `prediction_grid` object is an `sf`-obj
 coordinates and explanatory variables for all locations in a 1x1 km^2 grid over the south of
 Norway.
 
+## R package versions
+The version of all R packages used for running this code can be found in the file `renv.lock`
+
 ## Numerical dificulties
 
 If you are experiencing numerical difficulties, you might have to stop using inla.pardiso. The inla.pardiso library speeds up computations, but it is also more numerically unstable.
