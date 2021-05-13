@@ -60,8 +60,8 @@ plot = df3 %>%
   theme_bw() +
   labs(x = "$\\xi$", y = "Density", linetype = "Distribution") +
   facet_wrap(~λ, scales = "free_y", nrow = 3) +
-  theme(text = element_text(size = 16),
-        legend.position = "top")
+  theme(text = element_text(size = 16)) +
+  guides(linetype = FALSE)
 
 #tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
 #          plot, width = 10, height = 7, view = TRUE)

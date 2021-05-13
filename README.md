@@ -58,10 +58,3 @@ Norway.
 
 ## R package versions
 The version of all R packages used for running this code can be found in the file `renv.lock`
-
-## Numerical dificulties
-
-If you are experiencing numerical difficulties, you might have to stop using inla.pardiso. The inla.pardiso library speeds up computations, but it is also more numerically unstable.
-``` r
-INLA::inla.setOption(pardiso.license = NULL)
-```

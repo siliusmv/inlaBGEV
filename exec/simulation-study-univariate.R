@@ -261,5 +261,3 @@ stats %>%
   geom_col(aes(x = n, y = larger, fill = n)) +
   facet_wrap(~par) +
   geom_hline(yintercept = .5)
-
-stats %>%
