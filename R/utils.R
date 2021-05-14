@@ -30,7 +30,7 @@ get_proj_xy = function() {
 }
 
 #' @export
-tikz_plot = function(file, plot = NULL, expression = NULL, view = FALSE, ...) {
+tikz_plot = function(file, plot = NULL, expression = NULL, view = interactive(), ...) {
   # Ensure that you are on an operating system that you have tested
   operating_system = Sys.info()[["sysname"]]
   if (operating_system == "Windows") {

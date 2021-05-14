@@ -168,7 +168,7 @@ myplot = patchwork::wrap_plots(
   nrow = 3)
 
 tikz_plot(file.path(here::here(), "results", "return-level-maps.pdf"),
-          myplot, width = 6, height = 10, view = TRUE)
+          myplot, width = 6, height = 10)
 
 # Examine the matern field for 1 hour precipitation ================
 plot = stats[[1]]$matern %>%
@@ -179,7 +179,7 @@ plot = plot[[1]] +
   theme(text = element_text(size = 16))
 
 tikz_plot(file.path(here::here(), "results", "matern-plot.pdf"),
-          plot, width = 7, height = 10, view = TRUE)
+          plot, width = 7, height = 10)
 
 
 # Tail parameter summary =========================

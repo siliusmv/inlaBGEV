@@ -11,4 +11,4 @@ plot = plot_on_map(observations, response_name = "n_years") %>%
   labs(col = "Years")
 
 tikz_plot(file.path(here::here(), "results", "station-locations.pdf"),
-          plot, width = 6, height = 9, view = TRUE)
+          plot, width = 6, height = 9)
