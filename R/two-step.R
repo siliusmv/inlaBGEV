@@ -29,7 +29,7 @@ twostep_modelling = function(data,
     prediction_indices = seq_len(nrow(all_data))[-seq_len(nrow(dplyr::distinct(data, id)))]
   }
   if (n_sd_samples == 1) {
-    log_sd_samples = INLA::inla.posterior.sample(1000, sd_model, seed = 1)
+    log_sd_samples = INLA::inla.posterior.sample(1000, sd_model, seed = 1, parallel.configs = FALSE)
     log_sd_stats = inla_stats(
       sample_list = list(log_sd_samples),
       data = all_data,
@@ -41,7 +41,7 @@ twostep_modelling = function(data,
       family = "gaussian")
     sd_samples = log_sd_stats$fun$mean
   } else {
-    log_sd_samples = INLA::inla.posterior.sample(n_sd_samples, sd_res, seed = 1)
+    log_sd_samples = INLA::inla.posterior.sample(n_sd_samples, sd_res, seed = 1, parallel.configs = FALSE)
     log_sd_pars = inla_gaussian_pars(
       samples = log_sd_samples,
       data = all_data,
@@ -75,7 +75,7 @@ twostep_modelling = function(data,
         error = function(e) NULL)
       if (verbose) message("Done with iter nr. ", i)
       if (is.null(res)) return(NULL)
-      samples = INLA::inla.posterior.sample(ceiling(num_samples / n_sd_samples), res, seed = 1)
+      samples = INLA::inla.posterior.sample(ceiling(num_samples / n_sd_samples), res, seed = 1, parallel.configs = FALSE)
       list(s_est = s_est[prediction_indices] * res$standardising_const, samples = samples)
     })
 
