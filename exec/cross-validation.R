@@ -576,12 +576,12 @@ df = lapply(
       base::mean(unlist(stats[[i]]$out_of_sample_twostep)),
       base::mean(unlist(stats[[i]]$out_of_sample_twostep_one)),
       base::mean(unlist(stats[[i]]$out_of_sample_twostep_nogaussian)),
-      base::mean(unlist(stats[[i]]$out_of_sample_no_gauss_bootstrap)),
+      base::mean(unlist(stats[[i]]$out_of_sample_twostep_no_gauss_bootstrap)),
       base::mean(unlist(stats[[i]]$in_sample_joint)),
       base::mean(unlist(stats[[i]]$in_sample_twostep)),
       base::mean(unlist(stats[[i]]$in_sample_twostep_one)),
       base::mean(unlist(stats[[i]]$in_sample_twostep_nogaussian)),
-      base::mean(unlist(stats[[i]]$in_sample_no_gauss_bootstrap)))
+      base::mean(unlist(stats[[i]]$in_sample_twostep_no_gauss_bootstrap)))
     best_indx = c(0, 5) + c(which.min(res[1:5]), which.min(res[6:10]))
     res = format(res, digits = 3)
     res[best_indx] = paste0("\\bm{", res[best_indx], "}")
