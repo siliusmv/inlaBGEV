@@ -20,13 +20,13 @@ twostep_modelling = function(data,
   # Sample from the distribution of the SD at all observation locations and prediction locations
   if (is.null(prediction_data)) {
     all_data = dplyr::distinct(data, id, .keep_all = TRUE)
-    prediction_indices = seq_len(nrow(dplyr::distinct(data, id)))
+    prediction_indices = seq_len(nrow(dplyr::distinct(data, id, .keep_all = TRUE)))
   } else {
     all_data = dplyr::distinct(data, id, .keep_all = TRUE) %>%
       sf::st_transform(sf::st_crs(prediction_data)) %>%
       dplyr::select(dplyr::all_of(names(prediction_data))) %>%
       rbind(prediction_data)
-    prediction_indices = seq_len(nrow(all_data))[-seq_len(nrow(dplyr::distinct(data, id)))]
+    prediction_indices = seq_len(nrow(all_data))[-seq_len(nrow(dplyr::distinct(data, id, .keep_all = TRUE)))]
   }
   if (n_sd_samples == 1) {
     log_sd_samples = INLA::inla.posterior.sample(1000, sd_model, seed = 1, parallel.configs = FALSE)

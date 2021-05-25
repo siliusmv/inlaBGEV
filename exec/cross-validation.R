@@ -115,7 +115,7 @@ for (i in seq_along(hour_vec)) {
       covariate_names = list(covariate_names[[1]], NULL, NULL),
       s_est = twostep[[k]]$s_est,
       mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data, id)))
+      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
   }
   params = purrr::transpose(params)
   for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -153,7 +153,7 @@ for (i in seq_along(hour_vec)) {
       covariate_names = list(covariate_names[[1]], NULL, NULL),
       s_est = twostep_nogaussian[[k]]$s_est,
       mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data, id)))
+      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
   }
   params = purrr::transpose(params)
   for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -191,7 +191,7 @@ for (i in seq_along(hour_vec)) {
       covariate_names = list(covariate_names[[1]], NULL, NULL),
       s_est = twostep_one[[k]]$s_est,
       mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data, id)))
+      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
   }
   params = purrr::transpose(params)
   for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -229,7 +229,7 @@ for (i in seq_along(hour_vec)) {
       covariate_names = list(covariate_names[[1]], NULL, NULL),
       s_est = twostep_no_gauss_bootstrap[[k]]$s_est,
       mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data, id)))
+      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
   }
   params = purrr::transpose(params)
   for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -267,7 +267,7 @@ for (i in seq_along(hour_vec)) {
       covariate_names = covariate_names,
       s_est = rep(joint$standardising_const, length(unique(data$id))),
       mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data)))
+      coords = st_geometry(dplyr::distinct(data, .keep_all = TRUE)))
 
     # Compute stwCRPS
     for (k in seq_along(unique(data$id))) {
@@ -333,7 +333,7 @@ for (i in seq_along(hour_vec)) {
         covariate_names = list(covariate_names[[1]], NULL, NULL),
         s_est = twostep[[k]]$s_est,
         mesh = mesh,
-        coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
+        coords = st_geometry(dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE)))
     }
     params = purrr::transpose(params)
     for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -374,7 +374,7 @@ for (i in seq_along(hour_vec)) {
         covariate_names = list(covariate_names[[1]], NULL, NULL),
         s_est = twostep_nogaussian[[k]]$s_est,
         mesh = mesh,
-        coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
+        coords = st_geometry(dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE)))
     }
     params = purrr::transpose(params)
     for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -415,7 +415,7 @@ for (i in seq_along(hour_vec)) {
         covariate_names = list(covariate_names[[1]], NULL, NULL),
         s_est = twostep_one[[k]]$s_est,
         mesh = mesh,
-        coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
+        coords = st_geometry(dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE)))
     }
     params = purrr::transpose(params)
     for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -456,7 +456,7 @@ for (i in seq_along(hour_vec)) {
         covariate_names = list(covariate_names[[1]], NULL, NULL),
         s_est = twostep_no_gauss_bootstrap[[k]]$s_est,
         mesh = mesh,
-        coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
+        coords = st_geometry(dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE)))
     }
     params = purrr::transpose(params)
     for (k in seq_along(params)) params[[k]] = do.call(cbind, params[[k]])
@@ -495,7 +495,7 @@ for (i in seq_along(hour_vec)) {
         covariate_names = covariate_names,
         s_est = rep(joint$standardising_const, length(unique(out_of_fold_data$id))),
         mesh = mesh,
-        coords = st_geometry(dplyr::distinct(out_of_fold_data, id)))
+        coords = st_geometry(dplyr::distinct(out_of_fold_data, id, .keep_all = TRUE)))
 
       # Compute stwCRPS at all leave-out locations
       stats[[i]]$out_of_sample_joint[[j]] = list()
