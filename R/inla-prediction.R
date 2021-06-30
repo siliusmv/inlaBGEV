@@ -51,7 +51,7 @@ inla_multiple_sample_pars = function(sample_list,
   pars = list()
   if (any(class(data) %in% c("sf", "sfc"))) {
     mydata = sf::st_drop_geometry(data)[rows, ]
-    mycoords = sf::st_geometry(data)[rows, ]
+    mycoords = sf::st_geometry(data)[rows]
   } else {
     mydata = data[rows, ]
     mycoords = NULL
