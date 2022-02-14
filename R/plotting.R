@@ -24,7 +24,7 @@ plot_stats = function(x, grid = TRUE,
   }
   if (add_stations) {
     gg2 = gg2 +
-      geom_sf(data = dplyr::distinct(observations, id, .keep_all = TRUE), col = "red", size = .01, alpha = .5)
+      geom_sf(data = dplyr::distinct(observations, id, .keep_all = TRUE), col = "red", size = .03)
   }
   gg1 = style_map_plot(gg1, x, use_tex, ...)
   gg2 = style_map_plot(gg2, x, use_tex, ...)

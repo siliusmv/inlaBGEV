@@ -62,7 +62,7 @@ dbgev = function(x, μ, σ, ξ, p_a = .1, p_b = .2, s = 5, log = FALSE) {
 #' @export
 stwcrps_bgev = function(y, μ, σ, ξ, p, p_a = .1, p_b = .2) {
   S = abs(expected_twcrps_bgev(μ, σ, ξ, p, p_a = p_a, p_b = p_b))
-  twcrps = twcrps_bgev(y, μ, σ, ξ, p, p_b)
+  twcrps = twcrps_bgev(y, μ, σ, ξ, p, p_a = p_a, p_b = p_b)
   twcrps / S + log(S)
 }
 
@@ -109,9 +109,29 @@ expected_twcrps_bgev = function(μ, σ, ξ, p,
   } else {
     density = function(x) sapply(x, function(z) mean(dbgev(z, μ_true, σ_true, ξ_true, p_a, p_b)))
   }
-  integrate(function(y) density(y) * twcrps_bgev(y, μ, σ, ξ, p, p_b),
+  integrate(function(y) density(y) * twcrps_bgev(y, μ, σ, ξ, p, p_a, p_b),
             lower = y_min, upper = y_max)$value
 }
+
+#' @export
+expected_stwcrps_bgev = function(μ, σ, ξ, p,
+                                μ_true = μ, σ_true = σ, ξ_true = ξ,
+                                p_a = .1, p_b = .2) {
+  p_min = .00001
+  y_min = min(qbgev(p_min, μ_true, σ_true, ξ_true, p_a, p_b))
+  p_max = .99999
+  y_max = max(qbgev(p_max, μ_true, σ_true, ξ_true, p_a, p_b))
+  if (length(c(μ_true, σ_true, ξ_true)) == 3) {
+    density = function(x) dbgev(x, μ_true, σ_true, ξ_true, p_a, p_b)
+  } else {
+    density = function(x) sapply(x, function(z) mean(dbgev(z, μ_true, σ_true, ξ_true, p_a, p_b)))
+  }
+  integrate(function(y) density(y) * stwcrps_bgev(y, μ, σ, ξ, p, p_a, p_b),
+            lower = y_min, upper = y_max)$value
+}
+
+
+
 
 #' @export
 return_level_bgev = function(period, μ, σ, ξ, p_a = .1, p_b = .2, s = 5) {

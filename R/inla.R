@@ -86,6 +86,92 @@ inla_stack = function(df, covariate_names, response_name, spde = NULL, tag = "ta
 }
 
 #' @export
+inla_gev = function(data,
+                    response_name,
+                    covariate_names = NULL,
+                    s_est = rep(1, nrow(data)),
+                    spde = NULL,
+                    diagonal = "NULL",
+                    ...) {
+  # In case data is only a vector
+  if (is.vector(data)) {
+    data = data.frame(value = data)
+    response_name = "value"
+  }
+  # Standardise the observations by dividing on the estimated spread, and then
+  # dividing by a constant so the difference between 5% quantile and 95% quantile is 1
+  if (nrow(data) != length(s_est)) stop("Lengths of 'data' and 's_est' differ")
+  data[[response_name]] = data[[response_name]] / s_est
+  standardising_const = diff(quantile(data[[response_name]], c(.05, .95)))
+  data[[response_name]] = data[[response_name]] / standardising_const
+
+  # Create the design matrix
+  X = dplyr::select(data, tidyselect::all_of(covariate_names))
+  if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
+  X = as.matrix(X)
+
+  # Create data structures used by R-INLA
+  stack = inla_stack(data, covariate_names, response_name = response_name, spde = spde)
+
+  # # Create prior(s) for the location coefficient(s)
+  # if (length(covariate_names) > 0) {
+  #   q_formula = as.formula(paste(response_name, "~", paste(covariate_names, collapse = " + ")))
+  #   est_q_coeffs = quantreg::rq(q_formula, α, data)$coefficients
+  # } else {
+  #   est_q_coeffs = c("intercept" = quantile(data[[response_name]], α))
+  # }
+  # control.fixed = inla_location_prior(est_q_coeffs, precision = 10)
+
+  #stop("NO! This is not how we make the hyper!!")
+  ## Create prior(s) for the spread coefficient(s)
+  #spread_mean = diff(quantile(data[[response_name]], c(β / 2, 1 - β / 2)))
+  #spread_par = spread_mean
+  #spread_precision = 10
+  #hyper = inla_spread_prior(spread_par, spread_precision)
+  ## Create a prior for the tail parameter
+  #hyper$tail = inla_tail_prior(lims = c(0, .5), λ = λ)
+
+  # Create the formula needed by R-INLA
+  if (is.null(spde)) {
+    inla_formula = as.formula(paste(response_name, "~ -1 +",
+                                    paste(c("intercept", covariate_names), collapse = " + ")))
+  } else {
+    inla_formula = as.formula(paste(response_name, "~ -1 +",
+                                    paste(c("intercept", covariate_names), collapse = " + "),
+                                    "+ f(matern_field, model = spde, diagonal = ", diagonal, ")"))
+  }
+
+  # Create a list of all the arguments needed for running R-INLA
+  inla_args = inla_default_args("gev")
+  inla_args$formula = inla_formula
+  inla_args$control.predictor$A = INLA::inla.stack.A(stack)
+  inla_args$data = INLA::inla.stack.data(stack)
+  inla_args$data$spde = spde
+  #inla_args$control.fixed = control.fixed
+  #inla_args$control.family$hyper = hyper
+
+  # Add more arguments to INLA if they were provided in the ellipsis (...)
+  more_args = list(...)
+  for (name in names(more_args)) inla_args[[name]] = more_args[[name]]
+
+  # Run R-INLA
+  res = do.call(INLA::inla, inla_args)
+
+  if (any(res$summary.fixed$kld > 1e-3)) {
+    res$convergence = FALSE
+  } else {
+    res$convergence = TRUE
+  }
+
+  res$standardising_const = standardising_const
+  res
+}
+
+
+
+
+
+#' @export
 inla_bgev = function(data,
                      response_name,
                      covariate_names = NULL,

@@ -25,6 +25,7 @@ get_progress_bar = function(n) {
   pb
 }
 
+#' @export
 get_proj_xy = function() {
   sf::st_crs("+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")
 }
