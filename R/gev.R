@@ -67,3 +67,55 @@ locspread_to_locscale = function(q, s, ξ, α = .5, β = .8) {
 ℓ = function(x, ξ) {
   ifelse(ξ == 0, -log(-log(x)), (-log(x))^-ξ - 1)
 }
+
+
+#' @export
+stwcrps_gev = function(y, μ, σ, ξ, p) {
+  S = abs(expected_twcrps_gev(μ, σ, ξ, p))
+  twcrps = twcrps_gev(y, μ, σ, ξ, p)
+  twcrps / S + log(S)
+}
+
+#' @export
+twcrps_gev = function(y, μ, σ, ξ, p) {
+  F = function(x) sapply(x, function(z) mean(pgev(z, μ, σ, ξ)))
+  quantiles = qgev(p, μ, σ, ξ)
+  if (length(quantiles) == 1) {
+    y_min = quantiles
+  } else {
+    y_min = uniroot(function(x) F(x) - p, lower = min(quantiles), upper = max(quantiles))$root
+  }
+  p_max = .999
+  y_max = max(qgev(p_max, μ, σ, ξ), max(y) + 1)
+  res = rep(0, length(y))
+  for (i in seq_along(y)) {
+    if (y[i] < y_min) {
+      res[i] = integrate(function(x) (1 - F(x))^2, lower = y_min, upper = y_max)$value
+    } else if (y[i] < y_max) {
+      res[i] = integrate(function(x) F(x)^2, lower = y_min, upper = y[i])$value
+      res[i] = res[i] + integrate(function(x) (1 - F(x))^2, lower = y[i], upper = y_max)$value
+    } else {
+      res[i] = integrate(function(x) F(x)^2, lower = y_min, upper = y_max)$value
+    }
+  }
+  res = res + (y_min - y) * (ifelse(y <= y_min, 1, 0) - p)^2
+  res
+}
+
+#' @export
+expected_twcrps_gev = function(μ, σ, ξ, p,
+                                μ_true = μ, σ_true = σ, ξ_true = ξ) {
+  p_min = .00001
+  y_min = min(qgev(p_min, μ_true, σ_true, ξ_true))
+  p_max = .99999
+  y_max = max(qgev(p_max, μ_true, σ_true, ξ_true))
+  if (length(c(μ_true, σ_true, ξ_true)) == 3) {
+    density = function(x) dgev(x, μ_true, σ_true, ξ_true)
+  } else {
+    density = function(x) sapply(x, function(z) mean(dgev(z, μ_true, σ_true, ξ_true)))
+  }
+  integrate(function(y) density(y) * twcrps_gev(y, μ, σ, ξ, p),
+            lower = y_min, upper = y_max)$value
+}
+
+

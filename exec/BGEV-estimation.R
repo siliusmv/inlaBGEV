@@ -6,6 +6,7 @@ library(inlaBGEV)
 library(ggplot2)
 library(patchwork)
 
+
 # In this script we estimate return level maps for short-term precipitation,
 # using the two-step model
 # Parameters are also estimated
@@ -91,7 +92,7 @@ for (i in seq_along(hour_vec)) {
       }))
 
   ρ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[3])))
-  σ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[2])))
+  σ_samples = unlist(lapply(samples, function(x) sapply(x$samples, function(y) y$hyperpar[4])))
   stats[[i]]$ρ = data_stats(ρ_samples)
   stats[[i]]$σ = data_stats(σ_samples)
   stats[[i]]$sd_fixed = sd_res$summary.fixed
@@ -114,14 +115,14 @@ for (i in seq_along(hour_vec)) {
   stats[[i]]$beta_q = data_stats(beta_vals)
   stats[[i]]$beta_q$percentage_positive = percentage_positive
 
-
   message("Done with ", n_hours, " hours")
   message("Number of succesful runs: ", length(samples), " of ", n_sd_samples)
 }
-
 saveRDS(stats, file.path(here::here(), "results", "return-level-stats.rds"))
 
 # Plot the results ===================================================
+stats = readRDS(file.path(here::here(), "results", "return-level-stats.rds"))
+
 
 # Filter out the data of interest and standardise the covariates in the observations data
 # and in the prediction data
@@ -141,6 +142,7 @@ p1 = stats[[1]]$return_level %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p1[[1]] = p1[[1]] + labs(title = "1 hour precipitation")
+p1 = patchwork::wrap_plots(p1[[1]], p1[[2]], nrow = 2)
 
 my_breaks = seq(27, by = 4, length = 6)
 CI_breaks = seq(3.5, by = 1, length = 6)
@@ -150,6 +152,7 @@ p2 = stats[[2]]$return_level %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p2[[1]] = p2[[1]] + labs(title = "3 hour precipitation")
+p2 = patchwork::wrap_plots(p2[[1]], p2[[2]], nrow = 2)
 
 my_breaks = seq(35, by = 6, length = 6)
 CI_breaks = seq(4, by = 1.5, length = 6)
@@ -159,16 +162,17 @@ p3 = stats[[3]]$return_level %>%
   plot_stats(breaks = my_breaks, CI_breaks = CI_breaks, use_tex = TRUE,
              size = .3, axis_text = FALSE, add_stations = FALSE)
 p3[[1]] = p3[[1]] + labs(title = "6 hour precipitation")
+p3 = patchwork::wrap_plots(p3[[1]], p3[[2]], nrow = 2)
 
 text_size = 12
 myplot = patchwork::wrap_plots(
   p1 * theme(text = element_text(size = text_size)),
   p2 * theme(text = element_text(size = text_size)),
   p3 * theme(text = element_text(size = text_size)),
-  nrow = 3)
+  nrow = 1)
 
 tikz_plot(file.path(here::here(), "results", "return-level-maps.pdf"),
-          myplot, width = 6, height = 10)
+          myplot, width = 10, height = 6)
 
 # Examine the matern field for 1 hour precipitation ================
 plot = stats[[1]]$matern %>%
@@ -180,6 +184,34 @@ plot = plot[[1]] +
 
 tikz_plot(file.path(here::here(), "results", "matern-plot.pdf"),
           plot, width = 7, height = 10)
+
+plot = stats[[1]]$matern %>%
+  cbind(st_geometry(prediction_data)) %>%
+  st_as_sf() %>%
+  plot_stats(use_tex = TRUE, size = .3)
+plot = plot[[1]] +
+  theme(text = element_text(size = 17),
+        legend.title = element_text(size = 17),
+        legend.text = element_text(size = 17))
+
+tikz_plot(file.path(here::here(), "results", "matern-plot2.pdf"),
+          plot, width = 6, height = 9)
+
+# Examine the matern field for 1/3/6 hour precipitation ================
+plots = list()
+for (i in 1:3) {
+  plots[[i]] = stats[[i]]$matern %>%
+    cbind(st_geometry(prediction_data)) %>%
+    st_as_sf() %>%
+    plot_stats(axis_text = FALSE, use_tex = TRUE, size = .3)
+  plots[[i]] = plots[[i]][[1]] +
+    theme(text = element_text(size = 16)) +
+    labs(title = paste(c(1, 3, 6)[i], "hour precipitation"))# +
+    #scico::scale_fill_scico(palette = "oslo", direction = -1, end = .9, begin = .1, limits = c(-3.7, 3.7))
+}
+plot = patchwork::wrap_plots(plots, nrow = 1)
+
+tikz_plot(file.path(here::here(), "results", "matern-plot-1,3,6_hours.pdf"), plot, width = 10, height = 5)
 
 
 # Tail parameter summary =========================

@@ -11,8 +11,9 @@ inla_stats = function(sample_list,
                       n_batches = 1L,
                       verbose = TRUE,
                       fun = NULL,
+                      gev.scale.xi = .1,
                       quantiles = c(.025, .25, .5, .75, .975),
-                      family = c("bgev", "gaussian")) {
+                      family = c("bgev", "gaussian", "gev")) {
   # Divide the data into batches. This is necessary if you use a laptop with "finite" RAM
   batch_index = floor(seq(0, nrow(data), length.out = n_batches + 1))
   stats = vector("list", n_batches)
@@ -25,6 +26,7 @@ inla_stats = function(sample_list,
       covariate_names = covariate_names,
       rows = rows,
       s_list = s_list,
+      gev.scale.xi = gev.scale.xi,
       mesh = mesh,
       fun = fun,
       family = family)
@@ -47,7 +49,8 @@ inla_multiple_sample_pars = function(sample_list,
                                      mesh = NULL,
                                      rows = seq_len(nrow(data)),
                                      fun = NULL,
-                                     family = c("bgev", "gaussian")) {
+                                     gev.scale.xi = .1,
+                                     family = c("bgev", "gaussian", "gev")) {
   pars = list()
   if (any(class(data) %in% c("sf", "sfc"))) {
     mydata = sf::st_drop_geometry(data)[rows, ]
@@ -73,6 +76,16 @@ inla_multiple_sample_pars = function(sample_list,
         data = mydata,
         covariate_names = covariate_names,
         fun = fun,
+        mesh = mesh,
+        coords = mycoords)
+    } else if (family[1] == "gev") {
+      pars[[i]] = inla_gev_pars(
+        samples = sample_list[[i]],
+        data = mydata,
+        covariate_names = covariate_names,
+        gev.scale.xi = gev.scale.xi,
+        fun = fun,
+        s_est = s_list[[i]][rows],
         mesh = mesh,
         coords = mycoords)
     } else {
@@ -227,6 +240,21 @@ inla_gaussian_coeffs = function(samples, covariate_names) {
   list(μ = μ_samples, τ = τ_samples)
 }
 
+inla_gev_coeffs = function(samples, covariate_names) {
+  contents = attributes(samples)$.contents
+  μ_covariates = c("intercept", covariate_names[[1]])
+  μ_indx = sapply(μ_covariates, function(cov) which(contents$tag == cov))
+  μ_start = contents$start[μ_indx]
+  μ_samples = sapply(samples, function(s) s$latent[μ_start])
+  ξ_indx = grep("tail", names(samples[[1]]$hyperpar))
+  ξ_samples = sapply(samples, function(s) s$hyperpar[ξ_indx])
+  σ_indx = grep("precision for GEV", names(samples[[1]]$hyperpar))
+  σ_samples = sapply(samples, function(s) s$hyperpar[σ_indx])
+  σ_samples = σ_samples^-.5
+  list(μ = μ_samples, σ = σ_samples, ξ = ξ_samples)
+}
+
+
 inla_sample_matern_field = function(samples, mesh, coords) {
   contents = attributes(samples)$.contents
   indx = which(contents$tag == "matern_field")
@@ -237,3 +265,65 @@ inla_sample_matern_field = function(samples, mesh, coords) {
   matern_samples = sapply(samples, function(s) s$latent[start:(start + l - 1)])
   matrix((A %*% matern_samples)@x, nrow = nrow(A), ncol = ncol(matern_samples))
 }
+
+#' @export
+inla_gev_pars = function(samples,
+                         data,
+                         covariate_names,
+                         gev.scale.xi = .1,
+                         s_est = NULL,
+                         fun = NULL,
+                         mesh = NULL,
+                         coords = NULL) {
+
+  # Extract design matrix
+  X = dplyr::select(data, tidyselect::all_of(unique(unlist(covariate_names)))) %>%
+    dplyr::distinct(.keep_all = TRUE)
+  if (is(X, c("sf", "sfc"))) X = sf::st_drop_geometry(X)
+  X = cbind(intercept = 1, as.matrix(X))
+
+  # Extract all coefficients from the samples
+  coeffs = inla_gev_coeffs(samples, covariate_names)
+
+  # Compute parameters at all locations and for all samples
+  μ = matrix(X[, c("intercept", covariate_names[[1]])], nrow = nrow(X)) %*% coeffs$μ
+  σ = matrix(rep(coeffs$σ, each = nrow(X)), ncol = length(samples))
+  ξ = matrix(rep(coeffs$ξ, each = nrow(X)), ncol = length(samples))
+  ξ = ξ * gev.scale.xi
+
+  # If there is a spatial Gaussian field in the model, sample from it
+  # and add it to the location parameter
+  is_matern_field = any(attributes(samples)$.contents$tag == "matern_field")
+  #if (is_matern_field) q = q + inla_sample_matern_field(samples, mesh, coords)
+  if (is_matern_field) {
+    matern = inla_sample_matern_field(samples, mesh, coords)
+    μ = μ + matern
+  }
+
+  # If the response had been standardised, compute un-standardised parameters
+  if (!is.null(s_est)) {
+    σ = σ * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    μ = μ * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    if (is_matern_field) {
+      matern = matern * matrix(rep(s_est, length(samples)), ncol = length(samples))
+    }
+  }
+
+  if (is_matern_field) {
+    pars = list(μ = μ, σ = σ, ξ = ξ, matern = matern)
+  } else {
+    pars = list(μ = μ, σ = σ, ξ = ξ)
+  }
+  # Compute some function of the sampled parameters, e.g. return level
+  if (!is.null(fun)) {
+    if (is.function(fun)) {
+      pars$fun = matrix(fun(pars), nrow = nrow(X))
+    } else {
+      for (j in seq_along(fun)) {
+        pars[[names(fun)[j]]] = matrix(fun[[j]](pars), nrow = nrow(X))
+      }
+    }
+  }
+  pars
+}
+
