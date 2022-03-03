@@ -15,10 +15,10 @@ pbgev = function(x, μ, σ, ξ, p_a = .1, p_b = .2, s = 5) {
 #' @export
 qbgev = function(p, μ, σ, ξ, p_a = .1, p_b = .2, s = 5) {
   fix_lengths(p, μ, σ, ξ, p_a, p_b, s)
-  res = vector("numeric", length(p))
+  res = rep(NA, length(p))
   gumbel = which(p <= p_a)
   frechet = which(p >= p_b)
-  mixing = setdiff(seq_along(p), c(gumbel, frechet))
+  mixing = which(p_a < p & p < p_b)
   if (any(gumbel)) {
     g = get_gumbel_par(μ[gumbel], σ[gumbel], ξ[gumbel], p_a[gumbel], p_b[gumbel])
     res[gumbel] = qgev(p[gumbel], g$μ, g$σ, 0)
@@ -43,10 +43,10 @@ dbgev = function(x, μ, σ, ξ, p_a = .1, p_b = .2, s = 5, log = FALSE) {
   fix_lengths(x, μ, σ, ξ, p_a, p_b, s)
   a = qgev(p_a, μ, σ, ξ)
   b = qgev(p_b, μ, σ, ξ)
-  res = vector("numeric", length(x))
+  res = rep(NA, length(x))
   gumbel = which(x <= a)
   frechet = which(x >= b)
-  mixing = setdiff(seq_along(x), c(gumbel, frechet))
+  mixing = which(a < x & x < b)
   if (any(gumbel)) {
     g = get_gumbel_par(μ[gumbel], σ[gumbel], ξ[gumbel], p_a[gumbel], p_b[gumbel])
     res[gumbel] = dgev(x[gumbel], g$μ, g$σ, 0, log = log)
