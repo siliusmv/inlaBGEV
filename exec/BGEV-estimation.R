@@ -174,29 +174,6 @@ myplot = patchwork::wrap_plots(
 tikz_plot(file.path(here::here(), "results", "return-level-maps.pdf"),
           myplot, width = 10, height = 6)
 
-# Examine the matern field for 1 hour precipitation ================
-plot = stats[[1]]$matern %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(axis_text = FALSE, use_tex = TRUE, size = .3)
-plot = plot[[1]] +
-  theme(text = element_text(size = 16))
-
-tikz_plot(file.path(here::here(), "results", "matern-plot.pdf"),
-          plot, width = 7, height = 10)
-
-plot = stats[[1]]$matern %>%
-  cbind(st_geometry(prediction_data)) %>%
-  st_as_sf() %>%
-  plot_stats(use_tex = TRUE, size = .3)
-plot = plot[[1]] +
-  theme(text = element_text(size = 17),
-        legend.title = element_text(size = 17),
-        legend.text = element_text(size = 17))
-
-tikz_plot(file.path(here::here(), "results", "matern-plot2.pdf"),
-          plot, width = 6, height = 9)
-
 # Examine the matern field for 1/3/6 hour precipitation ================
 plots = list()
 for (i in 1:3) {

@@ -59,12 +59,12 @@ plot = df3 %>%
   scale_linetype_manual(values = c("solid", "dashed", "dotted")) +
   theme_bw() +
   labs(x = "$\\xi$", y = "Density", linetype = "Distribution") +
-  facet_wrap(~λ, scales = "free_y", nrow = 3) +
+  facet_wrap(~λ, scales = "free_y", nrow = 2) +
   theme(text = element_text(size = 16)) +
   guides(linetype = FALSE)
 
-#tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
-#          plot, width = 10, height = 7)
-
 tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
-          plot, height = 10, width = 7)
+          plot, width = 10, height = 7)
+
+#tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
+#          plot, height = 10, width = 7)

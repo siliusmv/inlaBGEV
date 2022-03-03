@@ -104,7 +104,6 @@ for (i in seq_along(hour_vec)) {
     num_cores = num_cores,
     α = α,
     β = β)
-  message("Done with in-sample two-step model")
 
   # Estimate parameters at all locations
   params = list()
@@ -128,6 +127,7 @@ for (i in seq_along(hour_vec)) {
     stats[[i]]$in_sample_twostep[[k]] = stwcrps_bgev(
       obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
+  message("Done with in-sample two-step model")
 
   # Perform in-sample estimation using all the data, twostep no gaussian in s^*
   set.seed(1)
@@ -142,7 +142,6 @@ for (i in seq_along(hour_vec)) {
     num_cores = num_cores,
     α = α,
     β = β)
-  message("Done with in-sample two-step model, no gaussian")
 
   # Estimate parameters at all locations
   params = list()
@@ -166,6 +165,7 @@ for (i in seq_along(hour_vec)) {
     stats[[i]]$in_sample_twostep_nogaussian[[k]] = stwcrps_bgev(
       obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
+  message("Done with in-sample two-step model, no gaussian")
 
   # Perform in-sample estimation using all the data, twostep no bootstrap
   set.seed(1)
@@ -180,7 +180,6 @@ for (i in seq_along(hour_vec)) {
     num_cores = 1,
     α = α,
     β = β)
-  message("Done with in-sample two-step model, no bootstrap")
 
   # Estimate parameters at all locations
   params = list()
@@ -204,6 +203,7 @@ for (i in seq_along(hour_vec)) {
     stats[[i]]$in_sample_twostep_one[[k]] = stwcrps_bgev(
       obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
+  message("Done with in-sample two-step model, no bootstrap")
 
   # Perform in-sample estimation using all the data, twostep no gaussian, no bootstrap
   set.seed(1)
@@ -218,7 +218,6 @@ for (i in seq_along(hour_vec)) {
     num_cores = 1,
     α = α,
     β = β)
-  message("Done with in-sample two-step model, no gaussian, no bootstrap")
 
   # Estimate parameters at all locations
   params = list()
@@ -242,6 +241,7 @@ for (i in seq_along(hour_vec)) {
     stats[[i]]$in_sample_twostep_no_gauss_bootstrap[[k]] = stwcrps_bgev(
       obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
   }
+  message("Done with in-sample two-step model, no gaussian, no bootstrap")
 
   # Run the joint model on the data
   joint = tryCatch(inla_bgev(
@@ -252,7 +252,6 @@ for (i in seq_along(hour_vec)) {
     spde = spde,
     α = α,
     β = β), error = function(e) NULL)
-  message("Done with in-sample joint model")
 
   if (!is.null(joint)) {
     # Sample from the posterior of the joint model
@@ -267,7 +266,7 @@ for (i in seq_along(hour_vec)) {
       covariate_names = covariate_names,
       s_est = rep(joint$standardising_const, length(unique(data$id))),
       mesh = mesh,
-      coords = st_geometry(dplyr::distinct(data, .keep_all = TRUE)))
+      coords = st_geometry(dplyr::distinct(data, id, .keep_all = TRUE)))
 
     # Compute stwCRPS
     for (k in seq_along(unique(data$id))) {
@@ -278,6 +277,9 @@ for (i in seq_along(hour_vec)) {
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
   }
+  message("Done with in-sample joint model")
+
+    
 
   message("Start with the out-of-sample modelling")
   for (j in seq_len(n_folds)) {
@@ -322,7 +324,6 @@ for (i in seq_along(hour_vec)) {
       num_cores = num_cores,
       α = α,
       β = β)
-    message("Done with out-of-sample two-step model for fold ", j)
 
     # Estimate parameters at all out-of-fold locations
     params = list()
@@ -347,6 +348,7 @@ for (i in seq_along(hour_vec)) {
       stats[[i]]$out_of_sample_twostep[[j]][[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
+    message("Done with out-of-sample two-step model for fold ", j)
 
     # Perform out-of-sample estimation with the two-step model, with no gaussian
     set.seed(1)
@@ -363,7 +365,6 @@ for (i in seq_along(hour_vec)) {
       num_cores = num_cores,
       α = α,
       β = β)
-    message("Done with out-of-sample two-step model, no gaussian for fold ", j)
 
     # Estimate parameters at all out-of-fold locations
     params = list()
@@ -388,6 +389,7 @@ for (i in seq_along(hour_vec)) {
       stats[[i]]$out_of_sample_twostep_nogaussian[[j]][[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
+    message("Done with out-of-sample two-step model, no gaussian for fold ", j)
 
     # Perform out-of-sample estimation with the two-step model, without bootstrapping
     set.seed(1)
@@ -404,7 +406,6 @@ for (i in seq_along(hour_vec)) {
       num_cores = 1,
       α = α,
       β = β)
-    message("Done with out-of-sample two-step model, no bootstrap for fold ", j)
  
     # Estimate parameters at all out-of-fold locations
     params = list()
@@ -429,6 +430,7 @@ for (i in seq_along(hour_vec)) {
       stats[[i]]$out_of_sample_twostep_one[[j]][[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
+    message("Done with out-of-sample two-step model, no bootstrap for fold ", j)
 
     # Perform out-of-sample estimation with the two-step model, with no gaussian and no bootstrap
     set.seed(1)
@@ -445,7 +447,6 @@ for (i in seq_along(hour_vec)) {
       num_cores = 1,
       α = α,
       β = β)
-    message("Done with out-of-sample two-step model, no gaussian, no bootstrap, for fold ", j)
 
     # Estimate parameters at all out-of-fold locations
     params = list()
@@ -470,6 +471,7 @@ for (i in seq_along(hour_vec)) {
       stats[[i]]$out_of_sample_twostep_no_gauss_bootstrap[[j]][[k]] = stwcrps_bgev(
         obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
     }
+    message("Done with out-of-sample two-step model, no gaussian, no bootstrap, for fold ", j)
 
 
     # Use joint modelling, out-of-sample
@@ -481,7 +483,6 @@ for (i in seq_along(hour_vec)) {
       spde = spde,
       α = α,
       β = β), error = function(e) NULL)
-    message("Done with out-of-sample joint model for fold ", j)
 
     if (!is.null(joint)) {
       set.seed(1)
@@ -507,6 +508,7 @@ for (i in seq_along(hour_vec)) {
           obs, locscale_pars$μ, locscale_pars$σ, locscale_pars$ξ, p0)
       }
     }
+    message("Done with out-of-sample joint model for fold ", j)
 
     message("Done with fold nr. ", j)
   }
@@ -538,6 +540,8 @@ for (i in seq_along(hour_vec)) {
 }
 
 saveRDS(stats, file.path(here::here(), "results", "cross-validation.rds"))
+
+stats = readRDS(file.path(here::here(), "results", "cross-validation.rds"))
 
 # Print the final results
 q = c(.025, .25, .5, .75, .975, .99, 1)
@@ -597,8 +601,6 @@ for (i in 1:nrow(df)) {
   table[[i + 1]] = c(case_when(i == 1 ~ "\\midrule\nOut-of-sample",
                                i == 6 ~ "\\midrule\nIn-sample",
                                TRUE ~ ""), "&",
-                     #case_when(i < 6 ~ "&",
-                     #          i >= 6 ~ "\\checkmark &"),
                      case_when(i %in% c(1, 6) ~ "Joint & &",
                                i %in% c(2, 7) ~ "Two-step & \\checkmark & \\checkmark",
                                i %in% c(4, 9) ~ "Two-step & & \\checkmark",
