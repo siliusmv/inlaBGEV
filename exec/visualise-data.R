@@ -1,7 +1,10 @@
 library(inlaBGEV)
 library(ggplot2)
 library(magrittr)
+library(dplyr)
 library(sf)
+library(ggpattern)
+library(patchwork)
 
 # In this script we display all the available observation locations in a map
 

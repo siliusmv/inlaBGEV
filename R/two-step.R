@@ -41,7 +41,7 @@ twostep_modelling = function(data,
       family = "gaussian")
     sd_samples = log_sd_stats$fun$mean
   } else {
-    log_sd_samples = INLA::inla.posterior.sample(n_sd_samples, sd_res, seed = 1, parallel.configs = FALSE)
+    log_sd_samples = INLA::inla.posterior.sample(n_sd_samples, sd_model, seed = 1, parallel.configs = FALSE)
     log_sd_pars = inla_gaussian_pars(
       samples = log_sd_samples,
       data = all_data,
@@ -76,7 +76,10 @@ twostep_modelling = function(data,
       if (verbose) message("Done with iter nr. ", i)
       if (is.null(res)) return(NULL)
       samples = INLA::inla.posterior.sample(ceiling(num_samples / n_sd_samples), res, seed = 1, parallel.configs = FALSE)
-      list(s_est = s_est[prediction_indices] * res$standardising_const, samples = samples)
+      list(s_est = s_est[prediction_indices] * res$standardising_const,
+           samples = samples,
+           standardising_const = res$standardising_const,
+           s_coeffs = log_sd_pars$coeffs[, i])
     })
 
   # Sometimes, R-INLA might have some numerical problems. Remove the bad models
@@ -128,7 +131,7 @@ twostep_gev = function(data,
       family = "gaussian")
     sd_samples = log_sd_stats$fun$mean
   } else {
-    log_sd_samples = INLA::inla.posterior.sample(n_sd_samples, sd_res, seed = 1, parallel.configs = FALSE)
+    log_sd_samples = INLA::inla.posterior.sample(n_sd_samples, sd_model, seed = 1, parallel.configs = FALSE)
     log_sd_pars = inla_gaussian_pars(
       samples = log_sd_samples,
       data = all_data,

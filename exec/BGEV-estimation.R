@@ -97,6 +97,10 @@ for (i in seq_along(hour_vec)) {
   stats[[i]]$σ = data_stats(σ_samples)
   stats[[i]]$sd_fixed = sd_res$summary.fixed
   stats[[i]]$sd_hyper = sd_res$summary.hyperpar
+  stats[[i]]$sd_fixed_with_standardising_const = sapply(
+    samples,
+    function(x) x$s_coeffs + c(log(x$standardising_const), rep(0, length(x$s_coeffs) - 1)))
+  stats[[i]]$sd_fixed_with_standardising_const = data_stats(stats[[i]]$sd_fixed_with_standardising_const)
 
   beta_vals = lapply(
     seq_along(samples),
@@ -227,12 +231,12 @@ for (i in seq_along(hour_vec)) {
   print(stats[[i]]$beta_q)
   cat("\n")
   message(paste(hour_vec[i], "hour beta_s:"))
-  print(stats[[i]]$sd_fixed)
+  print(stats[[i]]$sd_fixed_with_standardising_const)
   cat("\n")
   beta_q = stats[[i]]$beta_q[, c(1, 2, 3, 5, 7)] %>%
     round(digits = 3) %>%
     format()
-  beta_s = stats[[i]]$sd_fixed[, c(1, 2, 3, 4, 5)] %>%
+  beta_s = stats[[i]]$sd_fixed_with_standardising_const[, c(1, 2, 3, 4, 5)] %>%
     round(digits = 3) %>%
     format()
   sigmas = matrix(nrow = 1, ncol = 5)
@@ -245,13 +249,13 @@ for (i in seq_along(hour_vec)) {
   for (j in seq_len(nrow(beta_q))) {
     tmp_q[j] = paste("&", rownames(beta_q)[j], "&",
                    paste0("\\(", beta_q[j, ], "\\)", collapse = " & "), "\\\\\n")
-    if (j == 1) tmp_q[j] = paste("\\(\\bm{\\beta}_q\\)", tmp_q[j], collapse = "")
+    if (j == 1) tmp_q[j] = paste("\\(\\bm{\\beta}_\\mu\\)", tmp_q[j], collapse = "")
   }
   tmp_s = NULL
   for (j in seq_len(nrow(beta_s))) {
     tmp_s[j] = paste("&", rownames(beta_s)[j], "&",
                    paste0("\\(", beta_s[j, ], "\\)", collapse = " & "), "\\\\\n")
-    if (j == 1) tmp_s[j] = paste("\\(\\bm{\\beta}_s\\)", tmp_s[j], collapse = "")
+    if (j == 1) tmp_s[j] = paste("\\(\\bm{\\beta}_\\sigma\\)", tmp_s[j], collapse = "")
   }
   tmp_σ = NULL
   for (j in seq_len(nrow(sigmas))) {
@@ -278,6 +282,6 @@ final_table = gsub("intercept", "Intercept", final_table)
 final_table = gsub("x", "Easting", final_table)
 final_table = gsub("y", "Northing", final_table)
 final_table = gsub("precipitation", "Mean annual precipitation", final_table)
-final_table = gsub("sigma_q", "\\\\(\\\\sigma_q\\\\)", final_table)
+final_table = gsub("sigma_q", "\\\\(\\\\text{SD}(u_\\\\μ\\\\)", final_table)
 
 cat(final_table)

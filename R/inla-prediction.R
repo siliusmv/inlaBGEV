@@ -138,7 +138,7 @@ inla_gaussian_pars = function(samples,
   #if (is_matern_field) matern = inla_sample_matern_field(samples, mesh, coords)
   if (is_matern_field) μ = μ + inla_sample_matern_field(samples, mesh, coords)
 
-  pars = list(μ = μ, τ = τ)
+  pars = list(μ = μ, τ = τ, coeffs = coeffs$μ)
   # Compute some function of the sampled parameters, e.g. return level
   if (!is.null(fun)) {
     if (is.function(fun)) {

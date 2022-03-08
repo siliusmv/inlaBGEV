@@ -65,6 +65,3 @@ plot = df3 %>%
 
 tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
           plot, width = 10, height = 7)
-
-#tikz_plot(file.path(here::here(), "results", "pc-priors.pdf"),
-#          plot, height = 10, width = 7)

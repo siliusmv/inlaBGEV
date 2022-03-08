@@ -31,9 +31,7 @@ min_years = 4 # Minimum number of years needed before we estimate the GEV parame
 α = .5; β = .8 # Probabilities used in the location and spread parameters
 hour_vec = c(1, 3, 6) # Which aggregation lengths are we examining?
 # All the explanatory variables we are interested in
-covariate_names = c("x", "y", "height", "log_height", "dist_sea", "precipitation",
-                    "summer_precipitation", "summer_precipitation_fraction",
-                    "wetdays", "summer_temperature")
+covariate_names = c("x", "y", "height", "dist_sea", "precipitation")
 
 params = list()
 for (i in seq_along(hour_vec)) {
@@ -108,10 +106,8 @@ q_plot1 = params %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
-               "Distance\nto sea", "Annual\nprecipitation",
-               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
-               "Wetdays", "Summer\ntemperature"))) %>%
+    labels = c("Easting", "Northing", "Altitude",
+               "Distance\nto sea", "Annual\nprecipitation"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
@@ -130,10 +126,8 @@ s_plot1 = params %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
-               "Distance\nto sea", "Annual\nprecipitation",
-               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
-               "Wetdays", "Summer\ntemperature"))) %>%
+    labels = c("Easting", "Northing", "Altitude",
+               "Distance\nto sea", "Annual\nprecipitation"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
@@ -228,10 +222,8 @@ q_plot2 = params2 %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
-               "Distance\nto sea", "Annual\nprecipitation",
-               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
-               "Wetdays", "Summer\ntemperature"))) %>%
+    labels = c("Easting", "Northing", "Altitude",
+               "Distance\nto sea", "Annual\nprecipitation"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
@@ -250,10 +242,8 @@ s_plot2 = params2 %>%
   tidyr::pivot_longer(all_of(covariate_names)) %>%
   dplyr::mutate(name = factor(
     name, levels = covariate_names,
-    labels = c("Easting", "Northing", "Altitude", "Log-altitude",
-               "Distance\nto sea", "Annual\nprecipitation",
-               "Summer\nprecipitation", "Summer\nprecipitation\nfraction",
-               "Wetdays", "Summer\ntemperature"))) %>%
+    labels = c("Easting", "Northing", "Altitude",
+               "Distance\nto sea", "Annual\nprecipitation"))) %>%
   ggplot() +
   geom_point(aes(y = estimator, x = value), size = .2) +
   geom_smooth(aes(y = estimator, x = value), formula = y ~ x, method = "lm",
