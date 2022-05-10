@@ -37,9 +37,8 @@ estimating return levels in a map.
 
 ### Simulation studies
 
-The scripts `simulation-study-univariate.R`, `simulation-study-in-sample.R` and
-`simulation-study-out-of-sample.R` contains simulation studies that evaluate the performance of the
-bGEV distribution and the two-step model.
+The script `simulation-study-univariate-MLE.R` contains simulation studies for comparing the
+performance of the bGEV with that of the GEV.
 
 ### Visualisation of all weather stations
 
@@ -48,9 +47,9 @@ The script `visualise-data.R` simply plots the location of all weather stations 
 ## Data
 
 This package contains three data-sets, saved under the `data/` folder. Those are `observations`,
-`estimated_sd` and `prediction_grid`. The `observations` is an `sf`-object containing all yearly
+`estimated_sd` and `prediction_grid`. `observations` is an `sf`-object containing all yearly
 precipitation maxima for periods of 1, 3, 6, 12 and 24 hours. The object also contains coordinates
-for all stations and the values of the available explanatory variables. The `estimated_sd` is a
+for all stations and the values of the available explanatory variables. `estimated_sd` is a
 `data.frame` that contains the standard deviation of all observations larger than the 99% quantile
 from all available weather stations. The `prediction_grid` object is an `sf`-object containing
 coordinates and explanatory variables for all locations in a 1x1 km^2 grid over the south of
