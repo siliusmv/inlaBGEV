@@ -76,10 +76,15 @@ twostep_modelling = function(data,
       if (verbose) message("Done with iter nr. ", i)
       if (is.null(res)) return(NULL)
       samples = INLA::inla.posterior.sample(ceiling(num_samples / n_sd_samples), res, seed = 1, parallel.configs = FALSE)
-      list(s_est = s_est[prediction_indices] * res$standardising_const,
-           samples = samples,
-           standardising_const = res$standardising_const,
-           s_coeffs = log_sd_pars$coeffs[, i])
+      res = list(s_est = s_est[prediction_indices] * res$standardising_const,
+                 samples = samples,
+                 standardising_const = res$standardising_const)
+      if (n_sd_samples > 1) {
+        res$s_coeffs = log_sd_pars$coeffs[, i]
+      } else {
+        res$s_coeffs = sd_model$summary.fixed[, 1]
+      }
+      res
     })
 
   # Sometimes, R-INLA might have some numerical problems. Remove the bad models
