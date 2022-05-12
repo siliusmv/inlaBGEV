@@ -1,3 +1,5 @@
+^renv$
+^renv\.lock$
 ^data-raw$
 ^results$
 ^LICENSE\.md$
