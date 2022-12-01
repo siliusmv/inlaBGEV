@@ -1,6 +1,7 @@
 
-The goal of this package is to perform spatial Bayesian hierarchical modelling of extreme short-term
-precipitation in Norway using the bGEV distribution
+This repository contains the code used for creating all the results in the paper [Modelling Sub-daily Precipitation Extremes with the Blended Generalised Extreme Value Distribution](https://doi.org/10.1007/s13253-022-00500-7),
+which performs spatial Bayesian hierarchical modelling of extreme
+sub-daily precipitation in Norway using the bGEV distribution. 
 
 ## Installation
 
